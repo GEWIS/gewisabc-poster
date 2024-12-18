@@ -1,5 +1,6 @@
 <?php
-function loadEnv($filePath = '.env') {
+function loadEnv($filePath = '.env')
+{
     if (!file_exists($filePath)) {
         throw new Exception("The .env file does not exist at: $filePath");
     }
@@ -76,15 +77,38 @@ foreach ($repos as $repo) {
     }
 }
 // Sort activities by timestamp (newest to oldest)
-usort($activities, function($a, $b) {
+usort($activities, function ($a, $b) {
     // Compare the 'timestamp' fields, sorting from newest to oldest
     return strtotime($b['timestamp']) - strtotime($a['timestamp']);
 });
 
-foreach ($activities as $activity) {
-    $id = $activity['id'];
-    $repo = $activity['repo'];
-    curl_setopt($ch, CURLOPT_URL, "https://api.github.com/repos/GEWIS/$repo/issues/events/$id");
+//foreach ($activities as $activity) {
+//    $id = $activity['id'];
+//    $repo = $activity['repo'];
+//    curl_setopt($ch, CURLOPT_URL, "https://api.github.com/repos/GEWIS/$repo/issues/events/$id");
+//    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+//    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+//    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+//        "Accept: application/vnd.github+json",
+//        "Authorization: Bearer $accessToken",
+//        "X-GitHub-Api-Version: 2022-11-28",
+//        "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:133.0) Gecko/20100101 Firefox/133.0"
+//    ]);
+//    $response = curl_exec($ch);
+//    echo $response;
+//    curl_close($ch);
+//    foreach ($repos as $repo) {
+//        echo $repo['full_name'] . "<br>";
+//    }
+//}
+
+$commit_count = array();
+$since = date('Y-m-d\TH:i:s\Z', strtotime('-30 days'));
+foreach ($repos as $repo) {
+    $repo_name = $repo['full_name'];
+    $url = "https://api.github.com/repos/$repo_name/commits?since=$since";
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $url);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
     curl_setopt($ch, CURLOPT_HTTPHEADER, [
@@ -93,8 +117,27 @@ foreach ($activities as $activity) {
         "X-GitHub-Api-Version: 2022-11-28",
         "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:133.0) Gecko/20100101 Firefox/133.0"
     ]);
+
     $response = curl_exec($ch);
-    echo $response;
+    $commits = json_decode($response, true);
+    curl_close($ch);
+
+    foreach ($commits as $commit) {
+        $author = isset($commit['author']['login']) ? $commit['author']['login'] : '';
+        if ($author == 'dependabot[bot]') {
+            continue;
+        }
+        $count = isset($commit_count[$author]) ? $commit_count[$author] : 0;
+        $count += 1;
+        $commit_count[$author] = $count;
+    }
 }
 
+arsort($commit_count);
+
+//$top_five = array_slice($commit_count, 0, 5);
+
+foreach ($commit_count as $author => $commitCount) {
+    echo "Author: $author, Commits: $commitCount<br>";
+}
 ?>
