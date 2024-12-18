@@ -36,7 +36,7 @@ $organization = "GEWIS";
 $repo = "sudosos-frontend";
 $accessToken = getenv('ACCESS_TOKEN');
 // GitHub API URL to fetch pull requests
-$url = "https://api.github.com/orgs/GEWIS/repos";
+$url = "https://api.github.com/orgs/GEWIS/repos?per_page=100";
 // Use cURL to fetch data
 $ch = curl_init();
 curl_setopt($ch, CURLOPT_URL, $url);
@@ -67,6 +67,7 @@ foreach ($repos as $repo) {
     $activity = json_decode(curl_exec($ch), true);
     foreach ($activity as $activityItem) {
         $simplifiedActivity = array();
+        $simplifiedActivity['id'] = $activityItem['id'];
         $simplifiedActivity['repo'] = $repo['name'];
         $simplifiedActivity['timestamp'] = $activityItem['timestamp'];
         $simplifiedActivity['actor'] = $activityItem['actor']['login'];
@@ -81,8 +82,19 @@ usort($activities, function($a, $b) {
 });
 
 foreach ($activities as $activity) {
-    print_r($activity);
-    echo '<br>';
+    $id = $activity['id'];
+    $repo = $activity['repo'];
+    curl_setopt($ch, CURLOPT_URL, "https://api.github.com/repos/GEWIS/$repo/issues/events/$id");
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        "Accept: application/vnd.github+json",
+        "Authorization: Bearer $accessToken",
+        "X-GitHub-Api-Version: 2022-11-28",
+        "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:133.0) Gecko/20100101 Firefox/133.0"
+    ]);
+    $response = curl_exec($ch);
+    echo $response;
 }
 
 ?>
