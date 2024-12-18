@@ -51,9 +51,38 @@ curl_setopt($ch, CURLOPT_HTTPHEADER, [
 
 $response = curl_exec($ch);
 $repos = json_decode($response, true);
-curl_close($ch);
+$activities = array();
 foreach ($repos as $repo) {
-    echo $repo['full_name'] . "<br>";
+    echo $repo['name'] . "<br>";
+    $name = $repo['name'];
+    curl_setopt($ch, CURLOPT_URL, "https://api.github.com/repos/GEWIS/$name/activity");
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        "Accept: application/vnd.github+json",
+        "Authorization: Bearer $accessToken",
+        "X-GitHub-Api-Version: 2022-11-28",
+        "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:133.0) Gecko/20100101 Firefox/133.0"
+    ]);
+    $activity = json_decode(curl_exec($ch), true);
+    foreach ($activity as $activityItem) {
+        $simplifiedActivity = array();
+        $simplifiedActivity['repo'] = $repo['name'];
+        $simplifiedActivity['timestamp'] = $activityItem['timestamp'];
+        $simplifiedActivity['actor'] = $activityItem['actor']['login'];
+        $simplifiedActivity['gravatar'] = $activityItem['actor']['avatar_url'];
+        $activities[] = $simplifiedActivity;
+    }
+}
+// Sort activities by timestamp (newest to oldest)
+usort($activities, function($a, $b) {
+    // Compare the 'timestamp' fields, sorting from newest to oldest
+    return strtotime($b['timestamp']) - strtotime($a['timestamp']);
+});
+
+foreach ($activities as $activity) {
+    print_r($activity);
+    echo '<br>';
 }
 
 ?>
