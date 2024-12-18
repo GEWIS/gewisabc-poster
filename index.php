@@ -36,7 +36,7 @@ $organization = "GEWIS";
 $repo = "sudosos-frontend";
 $accessToken = getenv('ACCESS_TOKEN');
 // GitHub API URL to fetch pull requests
-$url = "https://api.github.com/repos/CodeNamedRobin/git-training/commits";
+$url = "https://api.github.com/orgs/GEWIS/repos";
 // Use cURL to fetch data
 $ch = curl_init();
 curl_setopt($ch, CURLOPT_URL, $url);
@@ -50,18 +50,10 @@ curl_setopt($ch, CURLOPT_HTTPHEADER, [
 ]);
 
 $response = curl_exec($ch);
+$repos = json_decode($response, true);
 curl_close($ch);
-
-// Decode and display the response
-$pullRequests = json_decode($response, true);
-if ($pullRequests) {
-    print_r($pullRequests);
-//    foreach ($pullRequests as $pr) {
-//        if (!empty($pr['merged_at'])) { // Only show merged PRs
-//            echo "{$pr['title']} by {$pr['user']['login']} (Merged on {$pr['merged_at']})<br>";
-//        }
-//    }
-} else {
-    echo "No pull requests found or an error occurred.";
+foreach ($repos as $repo) {
+    echo $repo['full_name'] . "<br>";
 }
+
 ?>
