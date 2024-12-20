@@ -50,6 +50,29 @@ curl_setopt($ch, CURLOPT_HTTPHEADER, [
     "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:133.0) Gecko/20100101 Firefox/133.0"
 ]);
 
+function humanTiming ($time)
+{
+
+    $time = time() - $time; // to get the time since that moment
+    $time = ($time<1)? 1 : $time;
+    $tokens = array (
+        31536000 => 'year',
+        2592000 => 'month',
+        604800 => 'week',
+        86400 => 'day',
+        3600 => 'hour',
+        60 => 'minute',
+        1 => 'second'
+    );
+
+    foreach ($tokens as $unit => $text) {
+        if ($time < $unit) continue;
+        $numberOfUnits = floor($time / $unit);
+        return $numberOfUnits.' '.$text.(($numberOfUnits>1)?'s':'');
+    }
+
+}
+
 $repos = sendRequest($ch, "https://api.github.com/orgs/GEWIS/repos?per_page=25&sort=pushed");
 
 //$activities = array();
@@ -94,19 +117,50 @@ foreach ($repos as $repo) {
         if ($author == 'dependabot[bot]') {
             continue;
         }
+
         $count = $contributors[$author]['count'] ?? 0;
+
         if (!in_array($repo_name, $contributors[$author]['repos'] ?? [])) {
             $contributors[$author]['repos'][] = $repo_name;
         }
-        $count += 1;
-        $contributors[$author]['count'] = $count;
+
+        $contributors[$author]['count'] = $count + 1;
         $contributors[$author]['image'] = $commit['author']['avatar_url'];
     }
 }
 
-uasort($contributors, function ($a, $b) {
-    return $b['count'] <=> $a['count'];
-});
+function compareCounts($a, $b)
+{
+    return $b['count'] - $a['count'];
+}
+uasort($contributors, "compareCounts");
+
+$contributors = array_slice($contributors, 0, 5, true);
+
+$recentPrs = array();
+foreach ($repos as $repo) {
+    $repo_name = $repo['name'];
+    $prs = sendRequest($ch, "https://api.github.com/repos/GEWIS/$repo_name/pulls?per_page=3&state=closed&sort=updated&direction=desc");
+
+    foreach ($prs as $pr) {
+        if (!empty($pr['merged_at'])){
+            $time = strtotime($pr['merged_at']);
+            if ($time > end($recentPrs) && $recentPrs) {
+                continue;
+            }
+
+            $recentPrs[$time]['title'] = $pr['title'];
+            $recentPrs[$time]['author'] = $pr['user']['login'];
+            $recentPrs[$time]['number'] = $pr['number'];
+            $recentPrs[$time]['repo'] = $pr['head']['repo']['name'];
+            $recentPrs[$time]['merged_at'] = $pr['merged_at'];
+
+            krsort($recentPrs);
+
+            $recentPrs = array_slice($recentPrs, 0, 5, true);
+        }
+    }
+}
 
 curl_close($ch);
 ?>
@@ -116,18 +170,38 @@ curl_close($ch);
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GitHub Commit Report</title>
+    <title>ABC GEWIS Poster</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <?php
+
+$checkmark = "
+<summary>
+    <svg class='check' aria-label='8 / 8 checks OK' role='img' viewBox='0 0 16 16' width='32' height='32' data-view-component='true'>
+        <path d='M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z'></path>
+    </svg>
+</summary>";
+
+foreach ($recentPrs as $time => $pr) {
+    echo "
+<div class='pr'>
+    <img src='assets/pr-merged.png' alt='PR merged icon'>
+    <div class='info'>
+        <h2 class='pr-title'>" . $pr['title'] . " $checkmark</h2>
+        
+        <p class='pr-info'>#" . $pr['number'] . " by " . $pr['author'] . " was merged into " . $pr['repo'] . " " . humanTiming($time) . " ago  •  Approved" . "</p>
+    </div>
+</div>";
+}
+
 foreach ($contributors as $author => $contributor) {
     $imageUrl = $contributor['image'];
     $repoList = implode(', ', $contributor['repos']);
     echo "
 <div class='author'>
     <img src='$imageUrl' alt='Avatar of $author' class='avatar'>
-    <h2 class='author-name'><span class='highlight'>$author</span></h2>
+    <h2 class='author-name'>$author</h2>
     <div class='info'>
         <p class='commit-count'><strong>" . $contributor['count'] . "</strong> Contributions</p>
         <p class='contributed-repos'>Contributed to: </><i>" . $repoList . "</i></p>
