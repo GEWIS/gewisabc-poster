@@ -49,6 +49,9 @@ curl_setopt($ch, CURLOPT_HTTPHEADER, [
     "X-GitHub-Api-Version: 2022-11-28",
     "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:133.0) Gecko/20100101 Firefox/133.0"
 ]);
+curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
+curl_setopt($ch, CURLOPT_TCP_FASTOPEN, true);
+curl_setopt($ch, CURLOPT_ENCODING, 'gzip,deflate');
 
 function toTimeAgo($time): string
 {
@@ -73,7 +76,7 @@ function toTimeAgo($time): string
     return "could not convert time";
 }
 
-$repos = sendRequest($ch, "https://api.github.com/orgs/GEWIS/repos?per_page=25&sort=pushed");
+$repos = sendRequest($ch, "https://api.github.com/orgs/GEWIS/repos?per_page=20&sort=pushed");
 
 //$activities = array();
 //foreach ($repos as $repo) {
@@ -108,9 +111,11 @@ $repos = sendRequest($ch, "https://api.github.com/orgs/GEWIS/repos?per_page=25&s
 
 $since = date('Y-m-d\TH:i:s\Z', strtotime('-14 days'));
 
+$recentPrs = array();
 $contributors = array();
 foreach ($repos as $repo) {
     $repo_name = $repo['name'];
+
     $commits = sendRequest($ch, "https://api.github.com/repos/GEWIS/$repo_name/commits?since=$since");
 
     foreach ($commits as $commit) {
@@ -129,21 +134,8 @@ foreach ($repos as $repo) {
         $contributors[$author]['count'] = $count + 1;
         $contributors[$author]['image'] = $commit['author']['avatar_url'];
     }
-}
 
-function compareCounts($a, $b)
-{
-    return $b['count'] - $a['count'];
-}
-
-uasort($contributors, "compareCounts");
-
-$contributors = array_slice($contributors, 0, 5, true);
-
-$recentPrs = array();
-foreach ($repos as $repo) {
-    $repo_name = $repo['name'];
-    $prs = sendRequest($ch, "https://api.github.com/repos/GEWIS/$repo_name/pulls?per_page=3&state=closed&sort=updated&direction=desc");
+    $prs = sendRequest($ch, "https://api.github.com/repos/GEWIS/$repo_name/pulls?per_page=5&state=closed&sort=updated&direction=desc");
 
     foreach ($prs as $pr) {
         if (!empty($pr['merged_at'])) {
@@ -158,13 +150,22 @@ foreach ($repos as $repo) {
             $recentPrs[$time]['number'] = $pr['number'];
             $recentPrs[$time]['repo'] = $pr['head']['repo']['name'];
             $recentPrs[$time]['merged_at'] = $pr['merged_at'];
-
-            krsort($recentPrs);
-
-            $recentPrs = array_slice($recentPrs, 0, 5, true);
         }
     }
 }
+
+function compareCounts($a, $b)
+{
+    return $b['count'] - $a['count'];
+}
+
+uasort($contributors, "compareCounts");
+
+$contributors = array_slice($contributors, 0, 5, true);
+
+krsort($recentPrs);
+
+$recentPrs = array_slice($recentPrs, 0, 5, true);
 
 curl_close($ch);
 ?>
