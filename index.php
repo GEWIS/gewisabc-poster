@@ -50,12 +50,11 @@ curl_setopt($ch, CURLOPT_HTTPHEADER, [
     "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:133.0) Gecko/20100101 Firefox/133.0"
 ]);
 
-function humanTiming ($time)
+function toTimeAgo($time): string
 {
-
-    $time = time() - $time; // to get the time since that moment
-    $time = ($time<1)? 1 : $time;
-    $tokens = array (
+    $time = time() - $time;
+    $time = ($time < 1) ? 1 : $time;
+    $tokens = array(
         31536000 => 'year',
         2592000 => 'month',
         604800 => 'week',
@@ -68,9 +67,10 @@ function humanTiming ($time)
     foreach ($tokens as $unit => $text) {
         if ($time < $unit) continue;
         $numberOfUnits = floor($time / $unit);
-        return $numberOfUnits.' '.$text.(($numberOfUnits>1)?'s':'');
+        return $numberOfUnits . ' ' . $text . (($numberOfUnits > 1) ? 's' : '');
     }
 
+    return "could not convert time";
 }
 
 $repos = sendRequest($ch, "https://api.github.com/orgs/GEWIS/repos?per_page=25&sort=pushed");
@@ -106,14 +106,16 @@ $repos = sendRequest($ch, "https://api.github.com/orgs/GEWIS/repos?per_page=25&s
 //    }
 //}
 
-$contributors = array();
 $since = date('Y-m-d\TH:i:s\Z', strtotime('-14 days'));
+
+$contributors = array();
 foreach ($repos as $repo) {
     $repo_name = $repo['name'];
     $commits = sendRequest($ch, "https://api.github.com/repos/GEWIS/$repo_name/commits?since=$since");
 
     foreach ($commits as $commit) {
         $author = $commit['author']['login'] ?? '';
+
         if ($author == 'dependabot[bot]') {
             continue;
         }
@@ -133,6 +135,7 @@ function compareCounts($a, $b)
 {
     return $b['count'] - $a['count'];
 }
+
 uasort($contributors, "compareCounts");
 
 $contributors = array_slice($contributors, 0, 5, true);
@@ -143,8 +146,9 @@ foreach ($repos as $repo) {
     $prs = sendRequest($ch, "https://api.github.com/repos/GEWIS/$repo_name/pulls?per_page=3&state=closed&sort=updated&direction=desc");
 
     foreach ($prs as $pr) {
-        if (!empty($pr['merged_at'])){
+        if (!empty($pr['merged_at'])) {
             $time = strtotime($pr['merged_at']);
+
             if ($time > end($recentPrs) && $recentPrs) {
                 continue;
             }
@@ -175,7 +179,6 @@ curl_close($ch);
 </head>
 <body>
 <?php
-
 $checkmark = "
 <summary>
     <svg class='check' aria-label='8 / 8 checks OK' role='img' viewBox='0 0 16 16' width='32' height='32' data-view-component='true'>
@@ -190,7 +193,7 @@ foreach ($recentPrs as $time => $pr) {
     <div class='info'>
         <h2 class='pr-title'>" . $pr['title'] . " $checkmark</h2>
         
-        <p class='pr-info'>#" . $pr['number'] . " by " . $pr['author'] . " was merged into " . $pr['repo'] . " " . humanTiming($time) . " ago  •  Approved" . "</p>
+        <p class='pr-info'>#" . $pr['number'] . " by " . $pr['author'] . " was merged into " . $pr['repo'] . " " . toTimeAgo($time) . " ago  •  Approved" . "</p>
     </div>
 </div>";
 }
