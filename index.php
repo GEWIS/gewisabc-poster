@@ -135,7 +135,7 @@ foreach ($repos as $repo) {
         $contributors[$author]['image'] = $commit['author']['avatar_url'];
     }
 
-    $prs = sendRequest($ch, "https://api.github.com/repos/GEWIS/$repo_name/pulls?per_page=5&state=closed&sort=updated&direction=desc");
+    $prs = sendRequest($ch, "https://api.github.com/repos/GEWIS/$repo_name/pulls?per_page=3&state=closed&sort=updated&direction=desc");
 
     foreach ($prs as $pr) {
         if (!empty($pr['merged_at'])) {
@@ -165,7 +165,7 @@ $contributors = array_slice($contributors, 0, 5, true);
 
 krsort($recentPrs);
 
-$recentPrs = array_slice($recentPrs, 0, 5, true);
+$recentPrs = array_slice($recentPrs, 0, 3, true);
 
 curl_close($ch);
 ?>
@@ -179,6 +179,9 @@ curl_close($ch);
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
+<div class="container">
+    <div class="prs">
+        <h2>Most recent merged pull requests across all GEWIS repositories</h2>
 <?php
 $checkmark = "
 <summary>
@@ -189,30 +192,37 @@ $checkmark = "
 
 foreach ($recentPrs as $time => $pr) {
     echo "
-<div class='pr'>
-    <img src='assets/pr-merged.png' alt='PR merged icon'>
-    <div class='info'>
-        <h2 class='pr-title'>" . $pr['title'] . " $checkmark</h2>
-        
-        <p class='pr-info'>#" . $pr['number'] . " by " . $pr['author'] . " was merged into " . $pr['repo'] . " " . toTimeAgo($time) . " ago  •  Approved" . "</p>
-    </div>
-</div>";
+        <div class='pr'>
+            <img src='assets/pr-merged.png' alt='PR merged icon'>
+            <div class='info'>
+                <h2 class='pr-title'>" . $pr['title'] . " $checkmark</h2>
+                
+                <p class='pr-info'>#" . $pr['number'] . " by " . $pr['author'] . " was merged into " . $pr['repo'] . " " . toTimeAgo($time) . " ago  •  Approved" . "</p>
+            </div>
+        </div>";
 }
-
+?>
+    </div>
+    <div class="contributors">
+        <h2>Top contributors accross all GEWIS repositories (Last 2 weeks)</h2>
+<?php
 foreach ($contributors as $author => $contributor) {
     $imageUrl = $contributor['image'];
     $repoList = implode(', ', $contributor['repos']);
     echo "
-<div class='author'>
-    <img src='$imageUrl' alt='Avatar of $author' class='avatar'>
-    <h2 class='author-name'>$author</h2>
-    <div class='info'>
-        <p class='commit-count'><strong>" . $contributor['count'] . "</strong> Contributions</p>
-        <p class='contributed-repos'>Contributed to: </><i>" . $repoList . "</i></p>
-    </div>
-</div>";
+        <div class='author'>
+            <img src='$imageUrl' alt='Avatar of $author' class='avatar'>
+            <h2 class='author-name'>$author</h2>
+            <div class='info'>
+                <p class='commit-count'><strong>" . $contributor['count'] . "</strong> Contributions</p>
+                <p class='contributed-repos'>Contributed to: </><i>" . $repoList . "</i></p>
+            </div>
+        </div>";
 }
 ?>
-
+    </div>
+    <div>Dummy div 1 (Maybe some explanation about the ABC and what we do and how to join?)</div>
+    <div>Dummy div 2 (Recent activity?)</div>
+</div>
 </body>
 </html>
