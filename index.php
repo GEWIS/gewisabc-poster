@@ -27,32 +27,23 @@ function loadEnv($filePath = '.env')
     }
 }
 
-function sendRequest($ch, $url)
+// Function used to set all functions for curl instance
+function setupCh($ch)
 {
-    curl_setopt($ch, CURLOPT_URL, $url);
-
-    $response = curl_exec($ch);
-    return json_decode($response, true);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        "Accept: application/vnd.github+json",
+        "Authorization: Bearer " . getenv('ACCESS_TOKEN'),
+        "X-GitHub-Api-Version: 2022-11-28",
+        "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:133.0) Gecko/20100101 Firefox/133.0"
+    ]);
+    curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
+    curl_setopt($ch, CURLOPT_TCP_FASTOPEN, true);
+    curl_setopt($ch, CURLOPT_ENCODING, 'gzip,deflate');
 }
 
-// Load the .env file
-loadEnv();
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
-
-$ch = curl_init();
-curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-curl_setopt($ch, CURLOPT_HTTPHEADER, [
-    "Accept: application/vnd.github+json",
-    "Authorization: Bearer " . getenv('ACCESS_TOKEN'),
-    "X-GitHub-Api-Version: 2022-11-28",
-    "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:133.0) Gecko/20100101 Firefox/133.0"
-]);
-curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
-curl_setopt($ch, CURLOPT_TCP_FASTOPEN, true);
-curl_setopt($ch, CURLOPT_ENCODING, 'gzip,deflate');
-
+// Convert integer time display to how long ago it was
 function toTimeAgo($time): string
 {
     $time = time() - $time;
@@ -76,7 +67,17 @@ function toTimeAgo($time): string
     return "could not convert time";
 }
 
-$repos = sendRequest($ch, "https://api.github.com/orgs/GEWIS/repos?per_page=20&sort=pushed");
+// Load the .env file
+loadEnv();
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+
+// Get last 20 updated repos
+$ch = curl_init("https://api.github.com/orgs/GEWIS/repos?per_page=20&sort=pushed");
+
+setupCh($ch);
+
+$repos = json_decode(curl_exec($ch), true);
 
 //$activities = array();
 //foreach ($repos as $repo) {
@@ -109,48 +110,96 @@ $repos = sendRequest($ch, "https://api.github.com/orgs/GEWIS/repos?per_page=20&s
 //    }
 //}
 
+// Used to get commits since a certain date
 $since = date('Y-m-d\TH:i:s\Z', strtotime('-14 days'));
 
-$recentPrs = array();
-$contributors = array();
+// Create multi curl handle
+$mh = curl_multi_init();
+
+// Create list to store curl handles
+$commitChs = [];
+$prChs = [];
 foreach ($repos as $repo) {
     $repo_name = $repo['name'];
 
-    $commits = sendRequest($ch, "https://api.github.com/repos/GEWIS/$repo_name/commits?since=$since");
+    // Initiate curl handles for this repo
+    $commitCh = curl_init("https://api.github.com/repos/GEWIS/$repo_name/commits?since=$since");
+    $prCh = curl_init("https://api.github.com/repos/GEWIS/$repo_name/pulls?per_page=3&state=closed&sort=updated&direction=desc");
 
-    foreach ($commits as $commit) {
-        $author = $commit['author']['login'] ?? '';
+    // Set options for curl handles
+    setupCh($commitCh);
+    setupCh($prCh);
 
-        if ($author == 'dependabot[bot]') {
-            continue;
-        }
+    // Add handles to multi handle
+    curl_multi_add_handle($mh, $commitCh);
+    curl_multi_add_handle($mh, $prCh);
 
-        $count = $contributors[$author]['count'] ?? 0;
+    // Add handles to lists
+    $commitChs[] = $commitCh;
+    $prChs[] = $prCh;
+}
 
-        if (!in_array($repo_name, $contributors[$author]['repos'] ?? [])) {
-            $contributors[$author]['repos'][] = $repo_name;
-        }
+// Execute all queries at the same time, continue when all are complete
+$running = null;
+do {
+    curl_multi_exec($mh, $running);
+} while ($running);
 
-        $contributors[$author]['count'] = $count + 1;
+// Close all handles and add response to list
+$commits = [];
+foreach ($commitChs as $commitCh) {
+    curl_multi_remove_handle($mh, $commitCh);
+    $commits = array_merge($commits, json_decode(curl_multi_getcontent($commitCh), true));
+}
+
+$prs = [];
+foreach ($prChs as $prCh) {
+    curl_multi_remove_handle($mh, $prCh);
+    $prs = array_merge($prs, json_decode(curl_multi_getcontent($prCh), true));
+}
+
+// Close multi handle
+curl_multi_close($mh);
+
+foreach ($commits as $commit) {
+    $author = $commit['author']['login'];
+
+    // Ignore commits from dependabot
+    if ($author == 'dependabot[bot]') {
+        continue;
+    }
+
+    $count = $contributors[$author]['count'] ?? 0;
+
+    // Commits have no repo property but we can get it from the html_url using a regex filter
+    preg_match('/github\.com\/[^\/]+\/([^\/]+)/', $commit['html_url'], $matches);
+    $repo = $matches[1];
+
+    // Only a repo to the list if it is not in the list yet
+    if (!in_array($repo, $contributors[$author]['repos'] ?? [])) {
+        $contributors[$author]['repos'][] = $repo;
+    }
+
+    // Only set image the first time
+    if (empty($contributors[$author]['image'])) {
         $contributors[$author]['image'] = $commit['author']['avatar_url'];
     }
 
-    $prs = sendRequest($ch, "https://api.github.com/repos/GEWIS/$repo_name/pulls?per_page=3&state=closed&sort=updated&direction=desc");
+    $contributors[$author]['count'] = $count + 1;
+}
 
-    foreach ($prs as $pr) {
-        if (!empty($pr['merged_at'])) {
-            $time = strtotime($pr['merged_at']);
+$recentPrs = [];
+foreach ($prs as $pr) {
+    // If the PR has been merged
+    if (!empty($pr['merged_at'])) {
+        $time = strtotime($pr['merged_at']);
 
-            if ($time > end($recentPrs) && $recentPrs) {
-                continue;
-            }
-
-            $recentPrs[$time]['title'] = $pr['title'];
-            $recentPrs[$time]['author'] = $pr['user']['login'];
-            $recentPrs[$time]['number'] = $pr['number'];
-            $recentPrs[$time]['repo'] = $pr['head']['repo']['name'];
-            $recentPrs[$time]['merged_at'] = $pr['merged_at'];
-        }
+        // Index on time to sort on later
+        $recentPrs[$time]['title'] = $pr['title'];
+        $recentPrs[$time]['author'] = $pr['user']['login'];
+        $recentPrs[$time]['number'] = $pr['number'];
+        $recentPrs[$time]['repo'] = $pr['head']['repo']['name'];
+        $recentPrs[$time]['merged_at'] = $pr['merged_at'];
     }
 }
 
@@ -159,12 +208,12 @@ function compareCounts($a, $b)
     return $b['count'] - $a['count'];
 }
 
+// Sort on the count values descending and take highest 5
 uasort($contributors, "compareCounts");
-
 $contributors = array_slice($contributors, 0, 5, true);
 
+// Sort on key (time) values descending and take highest (most recent) 3
 krsort($recentPrs);
-
 $recentPrs = array_slice($recentPrs, 0, 3, true);
 
 curl_close($ch);
@@ -182,16 +231,16 @@ curl_close($ch);
 <div class="container">
     <div class="prs">
         <h2>Most recent merged pull requests across all GEWIS repositories</h2>
-<?php
-$checkmark = "
+        <?php
+        $checkmark = "
 <summary>
     <svg class='check' aria-label='8 / 8 checks OK' role='img' viewBox='0 0 16 16' width='32' height='32' data-view-component='true'>
         <path d='M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z'></path>
     </svg>
 </summary>";
 
-foreach ($recentPrs as $time => $pr) {
-    echo "
+        foreach ($recentPrs as $time => $pr) {
+            echo "
         <div class='pr'>
             <img src='assets/pr-merged.png' alt='PR merged icon'>
             <div class='info'>
@@ -200,16 +249,19 @@ foreach ($recentPrs as $time => $pr) {
                 <p class='pr-info'>#" . $pr['number'] . " by " . $pr['author'] . " was merged into " . $pr['repo'] . " " . toTimeAgo($time) . " ago  •  Approved" . "</p>
             </div>
         </div>";
-}
-?>
+        }
+        ?>
     </div>
+
+    <div>Dummy div 1 (Maybe some explanation about the ABC and what we do and how to join?)</div>
+    <div>Dummy div 2 (Recent activity?)</div>
     <div class="contributors">
         <h2>Top contributors accross all GEWIS repositories (Last 2 weeks)</h2>
-<?php
-foreach ($contributors as $author => $contributor) {
-    $imageUrl = $contributor['image'];
-    $repoList = implode(', ', $contributor['repos']);
-    echo "
+        <?php
+        foreach ($contributors as $author => $contributor) {
+            $imageUrl = $contributor['image'];
+            $repoList = implode(', ', $contributor['repos']);
+            echo "
         <div class='author'>
             <img src='$imageUrl' alt='Avatar of $author' class='avatar'>
             <h2 class='author-name'>$author</h2>
@@ -218,11 +270,9 @@ foreach ($contributors as $author => $contributor) {
                 <p class='contributed-repos'>Contributed to: </><i>" . $repoList . "</i></p>
             </div>
         </div>";
-}
-?>
+        }
+        ?>
     </div>
-    <div>Dummy div 1 (Maybe some explanation about the ABC and what we do and how to join?)</div>
-    <div>Dummy div 2 (Recent activity?)</div>
 </div>
 </body>
 </html>
