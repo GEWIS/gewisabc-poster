@@ -208,9 +208,9 @@ function compareCounts($a, $b)
     return $b['count'] - $a['count'];
 }
 
-// Sort on the count values descending and take highest 5
+// Sort on the count values descending and take highest 4
 uasort($contributors, "compareCounts");
-$contributors = array_slice($contributors, 0, 5, true);
+$contributors = array_slice($contributors, 0, 4, true);
 
 // Sort on key (time) values descending and take highest (most recent) 3
 krsort($recentPrs);
@@ -230,7 +230,7 @@ curl_close($ch);
 <body>
 <div class="container">
     <div class="prs">
-        <h2>Most recent merged pull requests across all GEWIS repositories</h2>
+        <h2 class="quarter-title">Most recent merged pull requests across all GEWIS repositories</h2>
         <?php
         $checkmark = "
 <summary>
@@ -256,7 +256,7 @@ curl_close($ch);
     <div>Dummy div 1 (Maybe some explanation about the ABC and what we do and how to join?)</div>
     <div>Dummy div 2 (Recent activity?)</div>
     <div class="contributors">
-        <h2>Top contributors accross all GEWIS repositories (Last 2 weeks)</h2>
+        <h2 class="quarter-title">Top contributors across all GEWIS repositories (Last 2 weeks)</h2>
         <?php
         foreach ($contributors as $author => $contributor) {
             $imageUrl = $contributor['image'];
