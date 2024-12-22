@@ -67,6 +67,9 @@ function toTimeAgo($time): string
     return "could not convert time";
 }
 
+$contributorCount = 5;
+$prCount = 3;
+
 // Load the .env file
 loadEnv();
 error_reporting(E_ALL);
@@ -124,7 +127,7 @@ foreach ($repos as $repo) {
 
     // Initiate curl handles for this repo
     $commitCh = curl_init("https://api.github.com/repos/GEWIS/$repo_name/commits?since=$since");
-    $prCh = curl_init("https://api.github.com/repos/GEWIS/$repo_name/pulls?per_page=3&state=closed&sort=updated&direction=desc");
+    $prCh = curl_init("https://api.github.com/repos/GEWIS/$repo_name/pulls?per_page=$prCount&state=closed&sort=updated&direction=desc");
 
     // Set options for curl handles
     setupCh($commitCh);
@@ -210,13 +213,21 @@ function compareCounts($a, $b)
 
 // Sort on the count values descending and take highest 4
 uasort($contributors, "compareCounts");
-$contributors = array_slice($contributors, 0, 4, true);
+$contributors = array_slice($contributors, 0, $contributorCount, true);
 
 // Sort on key (time) values descending and take highest (most recent) 3
 krsort($recentPrs);
-$recentPrs = array_slice($recentPrs, 0, 3, true);
+$recentPrs = array_slice($recentPrs, 0, $prCount, true);
 
 curl_close($ch);
+
+// Save checkmark svg element used for PRs
+$checkmark = "
+<summary>
+    <svg class='check' aria-label='8 / 8 checks OK' role='img' viewBox='0 0 16 16' width='32' height='32' data-view-component='true'>
+        <path d='M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z'></path>
+    </svg>
+</summary>";
 ?>
 
 <!DOCTYPE html>
@@ -229,49 +240,51 @@ curl_close($ch);
 </head>
 <body>
 <div class="container">
-    <div class="prs">
-        <h2 class="quarter-title">Most recent merged pull requests across all GEWIS repositories</h2>
-        <?php
-        $checkmark = "
-<summary>
-    <svg class='check' aria-label='8 / 8 checks OK' role='img' viewBox='0 0 16 16' width='32' height='32' data-view-component='true'>
-        <path d='M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z'></path>
-    </svg>
-</summary>";
-
-        foreach ($recentPrs as $time => $pr) {
-            echo "
-        <div class='pr'>
-            <img src='assets/pr-merged.png' alt='PR merged icon'>
-            <div class='info'>
-                <h2 class='pr-title'>" . $pr['title'] . " $checkmark</h2>
-                
-                <p class='pr-info'>#" . $pr['number'] . " by " . $pr['author'] . " was merged into " . $pr['repo'] . " " . toTimeAgo($time) . " ago  •  Approved" . "</p>
+    <div class="left">
+        <div class="abc-info">
+            <img class="abc-logo" src='assets/abc-logo.png' alt='ABC Logo'>
+            <div class="abc-text">
+                <h1 class="quarter-title">Like writing software? Join the ABC!</h1>
+                <p>Find us at https://github.com/GEWIS</p>
             </div>
-        </div>";
-        }
-        ?>
+        </div>
+        <div class="contributors">
+            <h2 class="quarter-title">Top contributors across all GEWIS repositories (Last 2 weeks)</h2>
+            <?php
+            foreach ($contributors as $author => $contributor) {
+                $imageUrl = $contributor['image'];
+                $repoList = implode(', ', $contributor['repos']);
+                echo "
+            <div class='author'>
+                <img src='$imageUrl' alt='Avatar of $author' class='avatar'>
+                <h2 class='author-name'>$author</h2>
+                <div class='info'>
+                    <p class='commit-count'><strong>" . $contributor['count'] . "</strong> Contributions</p>
+                    <p class='contributed-repos'>Contributed to: </><i>" . $repoList . "</i></p>
+                </div>
+            </div>";
+            }
+            ?>
+        </div>
     </div>
-
-    <div>Dummy div 1 (Maybe some explanation about the ABC and what we do and how to join?)</div>
-    <div>Dummy div 2 (Recent activity?)</div>
-    <div class="contributors">
-        <h2 class="quarter-title">Top contributors across all GEWIS repositories (Last 2 weeks)</h2>
-        <?php
-        foreach ($contributors as $author => $contributor) {
-            $imageUrl = $contributor['image'];
-            $repoList = implode(', ', $contributor['repos']);
-            echo "
-        <div class='author'>
-            <img src='$imageUrl' alt='Avatar of $author' class='avatar'>
-            <h2 class='author-name'>$author</h2>
-            <div class='info'>
-                <p class='commit-count'><strong>" . $contributor['count'] . "</strong> Contributions</p>
-                <p class='contributed-repos'>Contributed to: </><i>" . $repoList . "</i></p>
-            </div>
-        </div>";
-        }
-        ?>
+    <div class="right">
+        <div class="prs">
+            <h2 class="quarter-title">Most recent merged pull requests across all GEWIS repositories</h2>
+            <?php
+            foreach ($recentPrs as $time => $pr) {
+                echo "
+            <div class='pr'>
+                <img src='assets/pr-merged.png' alt='PR merged icon'>
+                <div class='info'>
+                    <h2 class='pr-title'>" . $pr['title'] . " $checkmark</h2>
+                    
+                    <p class='pr-info'>#" . $pr['number'] . " by " . $pr['author'] . " was merged into " . $pr['repo'] . " " . toTimeAgo($time) . " ago  •  Approved" . "</p>
+                </div>
+            </div>";
+            }
+            ?>
+        </div>
+        <div class="dummy">Dummy div 2 (Recent activity?)</div>
     </div>
 </div>
 </body>
