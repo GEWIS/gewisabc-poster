@@ -75,8 +75,8 @@ loadEnv();
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
-// Get last 20 updated repos
-$ch = curl_init("https://api.github.com/orgs/GEWIS/repos?per_page=20&sort=pushed");
+// Get all repos
+$ch = curl_init("https://api.github.com/orgs/GEWIS/repos?per_page=100&sort=pushed");
 
 setupCh($ch);
 
@@ -201,7 +201,7 @@ foreach ($prs as $pr) {
         $recentPrs[$time]['title'] = $pr['title'];
         $recentPrs[$time]['author'] = $pr['user']['login'];
         $recentPrs[$time]['number'] = $pr['number'];
-        $recentPrs[$time]['repo'] = $pr['head']['repo']['name'];
+        $recentPrs[$time]['repo'] = $pr['head']['repo']['name'] ?? '';
         $recentPrs[$time]['merged_at'] = $pr['merged_at'];
     }
 }
@@ -245,7 +245,7 @@ $checkmark = "
             <img class="abc-logo" src='assets/abc-logo.png' alt='ABC Logo'>
             <div class="abc-text">
                 <h1 class="quarter-title">Like writing software? Join the ABC!</h1>
-                <p>Find us at https://github.com/GEWIS</p>
+                <h2>Find us at <span class="highlight">github.com/GEWIS</span></h2>
             </div>
         </div>
         <div class="contributors">

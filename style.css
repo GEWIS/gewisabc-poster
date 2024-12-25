@@ -46,6 +46,15 @@ body {
     height: 300px;
 }
 
+.abc-text {
+    margin-left: 30px;
+    align-content: center;
+}
+
+.highlight {
+    color: var(--accent-text-color);
+}
+
 .prs {
     background-color: var(--div-background-color);
     border-radius: 20px;
