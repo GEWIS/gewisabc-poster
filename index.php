@@ -237,6 +237,7 @@ $checkmark = "
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ABC GEWIS Poster</title>
     <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 </head>
 <body>
 <div class="container">
@@ -244,27 +245,30 @@ $checkmark = "
         <div class="abc-info">
             <img class="abc-logo" src='assets/abc-logo.png' alt='ABC Logo'>
             <div class="abc-text">
-                <h1 class="quarter-title">Like writing software? Join the ABC!</h1>
+                <h1 class="quarter-title">Like writing software? <br> Join the ABC!</h1>
                 <h2>Find us at <span class="highlight">github.com/GEWIS</span></h2>
             </div>
         </div>
         <div class="contributors">
             <h2 class="quarter-title">Top contributors across all GEWIS repositories (Last 2 weeks)</h2>
-            <?php
-            foreach ($contributors as $author => $contributor) {
-                $imageUrl = $contributor['image'];
-                $repoList = implode(', ', $contributor['repos']);
-                echo "
-            <div class='author'>
-                <img src='$imageUrl' alt='Avatar of $author' class='avatar'>
-                <h2 class='author-name'>$author</h2>
-                <div class='info'>
-                    <p class='commit-count'><strong>" . $contributor['count'] . "</strong> Contributions</p>
-                    <p class='contributed-repos'>Contributed to: </><i>" . $repoList . "</i></p>
-                </div>
-            </div>";
-            }
-            ?>
+            <!--            --><?php
+            //            foreach ($contributors as $author => $contributor) {
+            //                $imageUrl = $contributor['image'];
+            //                $repoList = implode(', ', $contributor['repos']);
+            //                echo "
+            //            <div class='author'>
+            //                <img src='$imageUrl' alt='Avatar of $author' class='avatar'>
+            //                <h2 class='author-name'>$author</h2>
+            //                <div class='info'>
+            //                    <p class='commit-count'><strong>" . $contributor['count'] . "</strong> Contributions</p>
+            //                    <p class='contributed-repos'>Contributed to: </><i>" . $repoList . "</i></p>
+            //                </div>
+            //            </div>";
+            //            }
+            //            ?>
+            <div class="chart-container">
+                <canvas id="contributionsChart"></canvas>
+            </div>
         </div>
     </div>
     <div class="right">
@@ -287,5 +291,89 @@ $checkmark = "
         <div class="dummy">Dummy div 2 (Recent activity?)</div>
     </div>
 </div>
+<script>
+    const contributorsData = <?php echo json_encode(array_map(function ($author, $data) {
+        return [
+            'name' => $author,
+            'count' => $data['count'],
+            'image' => $data['image'] // Add the image URL
+        ];
+    }, array_keys($contributors), $contributors)); ?>;
+    document.addEventListener('DOMContentLoaded', () => {
+        const ctx = document.getElementById('contributionsChart').getContext('2d');
+
+        const contributorNames = contributorsData.map(contributor => contributor.name);
+        const contributionCounts = contributorsData.map(contributor => contributor.count);
+        const contributorImages = contributorsData.map(contributor => contributor.image);
+
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: contributorNames,
+                datasets: [{
+                    label: 'Contributions',
+                    data: contributionCounts,
+                    backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                    borderColor: 'rgba(75, 192, 192, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                layout: {
+                    padding: {
+                        bottom: 70 // Add extra space for the images
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                },
+                scales: {
+                    x: {
+                        ticks: {
+                            callback: function (value, index) {
+                                return contributorNames[index]; // Show contributor names
+                            },
+                            font: {
+                                size: 14,
+                                weight: 'bold',
+                                family: 'Segoe UI'
+                            },
+                            color: 'white'
+                        }
+                    },
+                    y: {
+                        beginAtZero: true
+                    }
+                }
+            },
+            plugins: [{
+                id: 'customXAxisImages',
+                afterDraw: function (chart) {
+                    const xAxis = chart.scales.x;
+                    const ctx = chart.ctx;
+
+                    xAxis.ticks.forEach((tick, index) => {
+                        const image = new Image();
+                        image.src = contributorImages[index];
+                        const x = xAxis.getPixelForTick(index);
+                        const y = chart.height - 60; // Adjust to position images under names
+
+                        // Draw rounded image
+                        const imageSize = 60; // Image size
+                        ctx.save();
+                        ctx.beginPath();
+                        ctx.arc(x, y + imageSize / 2, imageSize / 2, 0, Math.PI * 2); // Circle mask
+                        ctx.closePath();
+                        ctx.clip();
+                        ctx.drawImage(image, x - imageSize / 2, y, imageSize, imageSize);
+                        ctx.restore();
+                    });
+                }
+            }]
+        });
+    });
+</script>
 </body>
 </html>
