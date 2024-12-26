@@ -1,0 +1,159 @@
+:root {
+    --background-color: #0d1117;
+    --div-background-color: #161b22;
+    --list-item-background-color: #1f242e;
+    --text-color: #c9d1d9;
+    --accent-text-color: #0d74e7;
+    --checkmark-color: #3fb950;
+}
+
+body {
+    font-family: 'Segoe UI', sans-serif;
+    background-color: var(--background-color);
+    color: var(--text-color);
+    margin: 0;
+    width: 100%;
+    position: absolute;
+    overflow: hidden;
+}
+
+.container {
+    display: flex;
+    padding: 20px;
+}
+
+.left {
+    width: 50%;
+    margin-right: 10px;
+}
+
+.right {
+    width: 50%;
+    margin-left: 10px;
+}
+
+.quarter-title {
+    margin-top: 0;
+}
+
+.abc-info {
+    max-height: 35%;
+    display: flex;
+    overflow: hidden;
+}
+
+.abc-logo {
+    height: 300px;
+}
+
+.abc-text {
+    margin-left: 30px;
+    align-content: center;
+}
+
+.highlight {
+    color: var(--accent-text-color);
+}
+
+.prs {
+    background-color: var(--div-background-color);
+    border-radius: 20px;
+    padding: 20px 20px 5px;
+}
+
+.contributors {
+    background-color: var(--div-background-color);
+    border-radius: 20px;
+    margin-top: 20px;
+    padding: 20px 20px 5px;
+}
+
+.dummy {
+    margin-top: 20px;
+    border-radius: 20px;
+    background-color: var(--div-background-color);
+    padding: 20px;
+}
+
+.author {
+    background-color: var(--list-item-background-color);
+    border-radius: 20px;
+    padding: 15px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+}
+
+.author-name {
+    font-size: 1.5rem;
+    color: var(--accent-text-color);
+    margin-left: 20px;
+    margin-right: 30px;
+    width: 220px;
+    overflow: hidden;
+}
+
+.author.info {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    height: 60px;
+}
+
+.author .avatar {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: white 1px solid;
+}
+
+.commit-count {
+    font-size: 1.25rem;
+    margin-top: 0;
+    margin-bottom: 10px;
+    white-space: nowrap;
+}
+
+.contributed-repos {
+    font-size: 1.25rem;
+    margin: 0;
+    white-space: nowrap;
+}
+
+.pr {
+    background-color: var(--list-item-background-color);
+    border-radius: 20px;
+    padding: 15px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+}
+
+.pr.info {
+    display: flex;
+    align-items: flex-start;
+    flex-direction: column;
+}
+
+.pr-title {
+    display: flex;
+    flex-direction: row;
+    margin-bottom: 10px;
+}
+
+.pr-info {
+    margin-top: 0;
+}
+
+.pr img {
+    width: 60px;
+    height: 60px;
+    object-fit: cover;
+    margin-right: 20px;
+}
+
+.check {
+    margin-left: 7px;
+    fill: var(--checkmark-color);
+}
