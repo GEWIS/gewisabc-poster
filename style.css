@@ -1,7 +1,7 @@
 :root {
     --background-color: #0d1117;
-    --div-background-color: #161b22;
-    --list-item-background-color: #1f242e;
+    --div-background-color: #1c212b;
+    --list-item-background-color: #252c37;
     --text-color: #c9d1d9;
     --accent-text-color: #0d74e7;
     --checkmark-color: #3fb950;
@@ -18,6 +18,7 @@ body {
 }
 
 .container {
+    height: calc(100vh - 40px);
     display: flex;
     padding: 20px;
 }
@@ -25,25 +26,34 @@ body {
 .left {
     width: 50%;
     margin-right: 10px;
+    height: 100%;
 }
 
 .right {
     width: 50%;
     margin-left: 10px;
+    height: 100%;
 }
 
-.quarter-title {
+h2 {
     margin-top: 0;
 }
 
+/* ABC-Info part (Top left) */
 .abc-info {
-    max-height: 35%;
+    height: 20%;
     display: flex;
     overflow: hidden;
+    align-items: center;
+    padding-left: 40px;
 }
 
 .abc-logo {
     height: 175px;
+}
+
+.highlight {
+    color: var(--accent-text-color);
 }
 
 .abc-text {
@@ -51,74 +61,69 @@ body {
     align-content: center;
 }
 
-.highlight {
-    color: var(--accent-text-color);
-}
-
-.prs {
-    background-color: var(--div-background-color);
-    border-radius: 20px;
-    padding: 20px 20px 5px;
-}
-
+/* Contributors part (Middle left) */
 .contributors {
     background-color: var(--div-background-color);
     border-radius: 20px;
-    margin-top: 20px;
-    padding: 20px 20px 5px;
-}
-
-.dummy {
-    margin-top: 20px;
-    border-radius: 20px;
-    background-color: var(--div-background-color);
     padding: 20px;
+    height: calc(60% - 20px);
 }
 
-.author {
-    background-color: var(--list-item-background-color);
+.chart-container {
+    height: calc(100% - 60px);
+    align-content: center;
+}
+
+/* Stats part (Bottom left) */
+.stats {
+    background-color: var(--div-background-color);
     border-radius: 20px;
-    padding: 15px;
-    margin-bottom: 20px;
+    margin-top: 20px;
+    padding: 20px;
     display: flex;
-    align-items: center;
+    height: calc(20% - 80px);
 }
 
-.author-name {
-    font-size: 1.5rem;
-    color: var(--accent-text-color);
-    margin-left: 20px;
-    margin-right: 30px;
-    width: 220px;
-    overflow: hidden;
+.stat {
+    text-align: center;
+    flex-grow: 1;
+    align-content: center;
 }
 
-.author.info {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    height: 60px;
-}
-
-.author .avatar {
-    width: 60px;
-    height: 60px;
-    border-radius: 50%;
-    object-fit: cover;
-    border: white 1px solid;
-}
-
-.commit-count {
-    font-size: 1.25rem;
-    margin-top: 0;
-    margin-bottom: 10px;
-    white-space: nowrap;
-}
-
-.contributed-repos {
-    font-size: 1.25rem;
+.stat h3 {
     margin: 0;
-    white-space: nowrap;
+}
+
+.stat h1{
+    margin: 5px;
+}
+
+/* Prs part (Right) */
+.prs {
+    background-color: var(--div-background-color);
+    border-radius: 20px;
+    padding: 0 20px;
+    overflow: hidden;
+    height: 100%;
+}
+
+.pr-list-title {
+    z-index: 2;
+    position: relative;
+    background-color: var(--div-background-color);
+    padding-top: 20px;
+    padding-bottom: 10px;
+}
+
+@keyframes scroll {
+    0% {transform: translateY(0);}
+    100% {transform: translateY(calc(-100%));}
+}
+
+.pr-list {
+    animation-name: scroll;
+    animation-duration: 45s;
+    animation-timing-function: linear;
 }
 
 .pr {
@@ -134,16 +139,13 @@ body {
     display: flex;
     align-items: flex-start;
     flex-direction: column;
+    margin-top: 0;
 }
 
 .pr-title {
     display: flex;
     flex-direction: row;
     margin-bottom: 10px;
-}
-
-.pr-info {
-    margin-top: 0;
 }
 
 .pr img {

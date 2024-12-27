@@ -28,7 +28,7 @@ function loadEnv($filePath = '.env')
 }
 
 // Function used to set all functions for curl instance
-function setupCh($ch)
+function setupCh($ch, $headers = false)
 {
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
@@ -41,6 +41,10 @@ function setupCh($ch)
     curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
     curl_setopt($ch, CURLOPT_TCP_FASTOPEN, true);
     curl_setopt($ch, CURLOPT_ENCODING, 'gzip,deflate');
+
+    if ($headers) {
+        curl_setopt($ch, CURLOPT_HEADER, true);
+    }
 }
 
 // Convert integer time display to how long ago it was
@@ -68,7 +72,7 @@ function toTimeAgo($time): string
 }
 
 $contributorCount = 5;
-$prCount = 3;
+$prCount = 20;
 
 // Load the .env file
 loadEnv();
@@ -82,36 +86,7 @@ setupCh($ch);
 
 $repos = json_decode(curl_exec($ch), true);
 
-//$activities = array();
-//foreach ($repos as $repo) {
-//    echo $repo['name'] . "<br>";
-//    $name = $repo['name'];
-//    $activity = sendRequest($ch, "https://api.github.com/repos/GEWIS/$name/activity");
-//    foreach ($activity as $activityItem) {
-//        $simplifiedActivity = array();
-//        $simplifiedActivity['id'] = $activityItem['id'];
-//        $simplifiedActivity['repo'] = $repo['name'];
-//        $simplifiedActivity['timestamp'] = $activityItem['timestamp'];
-//        $simplifiedActivity['actor'] = $activityItem['actor']['login'];
-//        $simplifiedActivity['gravatar'] = $activityItem['actor']['avatar_url'];
-//        $activities[] = $simplifiedActivity;
-//    }
-//}
-//// Sort activities by timestamp (newest to oldest)
-//usort($activities, function ($a, $b) {
-//    // Compare the 'timestamp' fields, sorting from newest to oldest
-//    return strtotime($b['timestamp']) - strtotime($a['timestamp']);
-//});
-//
-//foreach ($activities as $activity) {
-//    $id = $activity['id'];
-//    $repo = $activity['repo'];
-//    $response = sendRequest($ch, "https://api.github.com/repos/GEWIS/$repo/issues/events/$id");
-//    echo $response;
-//    foreach ($repos as $repo) {
-//        echo $repo['full_name'] . "<br>";
-//    }
-//}
+curl_close($ch);
 
 // Used to get commits since a certain date
 $since = date('Y-m-d\TH:i:s\Z', strtotime('-14 days'));
@@ -122,24 +97,34 @@ $mh = curl_multi_init();
 // Create list to store curl handles
 $commitChs = [];
 $prChs = [];
+$commitCountChs = [];
+$contributorsChs = [];
 foreach ($repos as $repo) {
     $repo_name = $repo['name'];
 
     // Initiate curl handles for this repo
     $commitCh = curl_init("https://api.github.com/repos/GEWIS/$repo_name/commits?since=$since");
     $prCh = curl_init("https://api.github.com/repos/GEWIS/$repo_name/pulls?per_page=$prCount&state=closed&sort=updated&direction=desc");
+    $commitCountCh = curl_init("https://api.github.com/repos/GEWIS/$repo_name/commits?per_page=1");
+    $contributorCh = curl_init("https://api.github.com/repos/GEWIS/$repo_name/contributors");
 
     // Set options for curl handles
     setupCh($commitCh);
     setupCh($prCh);
+    setupCh($commitCountCh, true);
+    setupCh($contributorCh);
 
     // Add handles to multi handle
     curl_multi_add_handle($mh, $commitCh);
     curl_multi_add_handle($mh, $prCh);
+    curl_multi_add_handle($mh, $commitCountCh);
+    curl_multi_add_handle($mh, $contributorCh);
 
     // Add handles to lists
     $commitChs[] = $commitCh;
     $prChs[] = $prCh;
+    $commitCountChs[] = $commitCountCh;
+    $contributorsChs[] = $contributorCh;
 }
 
 // Execute all queries at the same time, continue when all are complete
@@ -148,7 +133,7 @@ do {
     curl_multi_exec($mh, $running);
 } while ($running);
 
-// Close all handles and add response to list
+// Close all handles and parse responses
 $commits = [];
 foreach ($commitChs as $commitCh) {
     curl_multi_remove_handle($mh, $commitCh);
@@ -160,6 +145,43 @@ foreach ($prChs as $prCh) {
     curl_multi_remove_handle($mh, $prCh);
     $prs = array_merge($prs, json_decode(curl_multi_getcontent($prCh), true));
 }
+
+$commitCount = 0;
+foreach ($commitCountChs as $commitCountCh) {
+    curl_multi_remove_handle($mh, $commitCountCh);
+
+    // Get headers using standard separator
+    list($headers, $content) = explode("\r\n\r\n", curl_multi_getcontent($commitCountCh),2);
+
+    // For each header
+    foreach (explode("\r\n", $headers) as $header => $line) {
+        // If it is the link header
+        if (strpos($line, 'link') !== false) {
+            // Split into header key and value
+            list ($key, $value) = explode(': ', $line);
+
+            // Get the amount of pages left
+            // Because page=1 in the parameters we know that this is the amount of commits in this repo
+            preg_match('/page=(\d+); rel="last"/', str_replace(['<', '>'], '', $value), $matches);
+            $commitCount += intval($matches[1]);
+        }
+    }
+}
+
+$uniqueContributors = [];
+foreach ($contributorsChs as $contributorsCh) {
+    curl_multi_remove_handle($mh, $contributorsCh);
+    $contributorList = json_decode(curl_multi_getcontent($contributorsCh), true);
+    foreach ($contributorList as $contributor) {
+        // Only add contributors that are not in the list yet to only get unique contributors
+        $login = $contributor['login'];
+        if (!in_array($login, $uniqueContributors)) {
+            $uniqueContributors[] = $login;
+        }
+    }
+}
+
+$uniqueContributorCount = count($uniqueContributors);
 
 // Close multi handle
 curl_multi_close($mh);
@@ -174,7 +196,7 @@ foreach ($commits as $commit) {
 
     $count = $contributors[$author]['count'] ?? 0;
 
-    // Commits have no repo property but we can get it from the html_url using a regex filter
+    // Commits have no repo property, but we can get it from the html_url using a regex filter
     preg_match('/github\.com\/[^\/]+\/([^\/]+)/', $commit['html_url'], $matches);
     $repo = $matches[1];
 
@@ -219,7 +241,7 @@ $contributors = array_slice($contributors, 0, $contributorCount, true);
 krsort($recentPrs);
 $recentPrs = array_slice($recentPrs, 0, $prCount, true);
 
-curl_close($ch);
+$repo_count = count($repos);
 
 // Save checkmark svg element used for PRs
 $checkmark = "
@@ -245,52 +267,55 @@ $checkmark = "
         <div class="abc-info">
             <img class="abc-logo" src='assets/abc-logo.png' alt='ABC Logo'>
             <div class="abc-text">
-                <h1 class="quarter-title">Like writing software? <br> Join the ABC!</h1>
+                <h1>Like writing software? <br> Join the ABC!</h1>
                 <h2>Find us at <span class="highlight">github.com/GEWIS</span></h2>
             </div>
         </div>
         <div class="contributors">
-            <h2 class="quarter-title">Top contributors across all GEWIS repositories (Last 2 weeks)</h2>
-            <!--            --><?php
-            //            foreach ($contributors as $author => $contributor) {
-            //                $imageUrl = $contributor['image'];
-            //                $repoList = implode(', ', $contributor['repos']);
-            //                echo "
-            //            <div class='author'>
-            //                <img src='$imageUrl' alt='Avatar of $author' class='avatar'>
-            //                <h2 class='author-name'>$author</h2>
-            //                <div class='info'>
-            //                    <p class='commit-count'><strong>" . $contributor['count'] . "</strong> Contributions</p>
-            //                    <p class='contributed-repos'>Contributed to: </><i>" . $repoList . "</i></p>
-            //                </div>
-            //            </div>";
-            //            }
-            //            ?>
+            <h2>Top contributors across all GEWIS repositories (Last 2 weeks)</h2>
             <div class="chart-container">
                 <canvas id="contributionsChart"></canvas>
+            </div>
+        </div>
+        <div class="stats">
+            <div class="stat">
+                <h3>Across</h3>
+                <h1 class="highlight"><?php echo $repo_count ?></h1>
+                <h3>Repositories</h3>
+            </div>
+            <div class="stat">
+                <h3>There have been</h3>
+                <h1 class="highlight"><?php echo $commitCount ?></h1>
+                <h3>Contributions</h3>
+            </div>
+            <div class="stat">
+                <h3>Made by</h3>
+                <h1 class="highlight"><?php echo $uniqueContributorCount ?></h1>
+                <h3>Contributors</h3>
             </div>
         </div>
     </div>
     <div class="right">
         <div class="prs">
-            <h2 class="quarter-title">Most recent merged pull requests across all GEWIS repositories</h2>
-            <?php
-            foreach ($recentPrs as $time => $pr) {
-                echo "
-            <div class='pr'>
-                <img src='assets/pr-merged.png' alt='PR merged icon'>
-                <div class='info'>
-                    <h2 class='pr-title'>" . $pr['title'] . " $checkmark</h2>
-                    
-                    <p class='pr-info'>#" . $pr['number'] . " by " . $pr['author'] . " was merged into " . $pr['repo'] . " " . toTimeAgo($time) . " ago  •  Approved" . "</p>
-                </div>
-            </div>";
+            <h2 class="pr-list-title">Most recent merged pull requests across all GEWIS repositories</h2>
+            <div class="pr-list">
+                <?php
+                foreach ($recentPrs as $time => $pr) {
+                    echo "
+                <div class='pr'>
+                    <img src='assets/pr-merged.png' alt='PR merged icon'>
+                    <div>
+                        <h2 class='pr-title'>" . $pr['title'] . " $checkmark</h2>
+                        <p class='pr-info'>#" . $pr['number'] . " by " . $pr['author'] . " was merged into " . $pr['repo'] . " " . toTimeAgo($time) . " ago  •  Approved" . "</p>
+                    </div>
+                </div>";
             }
             ?>
+            </div>
         </div>
-        <div class="dummy">Dummy div 2 (Recent activity?)</div>
     </div>
 </div>
+
 <script>
     const contributorsData = <?php echo json_encode(array_map(function ($author, $data) {
         return [
