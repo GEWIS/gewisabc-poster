@@ -18,7 +18,7 @@ body {
 }
 
 .container {
-    height: calc(100vh - 40px);
+    height: calc(100vh - 100px);
     display: flex;
     padding: 20px;
 }
@@ -45,7 +45,8 @@ h2 {
     display: flex;
     overflow: hidden;
     align-items: center;
-    padding-left: 40px;
+    width: fit-content;
+    margin: auto;
 }
 
 .abc-logo {
@@ -117,13 +118,15 @@ h2 {
 
 @keyframes scroll {
     0% {transform: translateY(0);}
-    100% {transform: translateY(calc(-100%));}
+    20% {transform: translateY(0);}
+    100% {transform: translateY(calc(-70%));}
 }
 
 .pr-list {
     animation-name: scroll;
-    animation-duration: 45s;
+    animation-duration: 20s;
     animation-timing-function: linear;
+    animation-iteration-count: infinite;
 }
 
 .pr {
@@ -133,19 +136,14 @@ h2 {
     margin-bottom: 20px;
     display: flex;
     align-items: center;
-}
-
-.pr.info {
-    display: flex;
-    align-items: flex-start;
-    flex-direction: column;
-    margin-top: 0;
+    overflow: hidden;
 }
 
 .pr-title {
     display: flex;
     flex-direction: row;
     margin-bottom: 10px;
+    white-space: nowrap;
 }
 
 .pr img {

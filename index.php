@@ -151,7 +151,7 @@ foreach ($commitCountChs as $commitCountCh) {
     curl_multi_remove_handle($mh, $commitCountCh);
 
     // Get headers using standard separator
-    list($headers, $content) = explode("\r\n\r\n", curl_multi_getcontent($commitCountCh),2);
+    list($headers, $content) = explode("\r\n\r\n", curl_multi_getcontent($commitCountCh), 2);
 
     // For each header
     foreach (explode("\r\n", $headers) as $header => $line) {
@@ -279,11 +279,6 @@ $checkmark = "
         </div>
         <div class="stats">
             <div class="stat">
-                <h3>Across</h3>
-                <h1 class="highlight"><?php echo $repo_count ?></h1>
-                <h3>Repositories</h3>
-            </div>
-            <div class="stat">
                 <h3>There have been</h3>
                 <h1 class="highlight"><?php echo $commitCount ?></h1>
                 <h3>Contributions</h3>
@@ -292,6 +287,11 @@ $checkmark = "
                 <h3>Made by</h3>
                 <h1 class="highlight"><?php echo $uniqueContributorCount ?></h1>
                 <h3>Contributors</h3>
+            </div>
+            <div class="stat">
+                <h3>Across</h3>
+                <h1 class="highlight"><?php echo $repo_count ?></h1>
+                <h3>Repositories</h3>
             </div>
         </div>
     </div>
@@ -309,8 +309,8 @@ $checkmark = "
                         <p class='pr-info'>#" . $pr['number'] . " by " . $pr['author'] . " was merged into " . $pr['repo'] . " " . toTimeAgo($time) . " ago  •  Approved" . "</p>
                     </div>
                 </div>";
-            }
-            ?>
+                }
+                ?>
             </div>
         </div>
     </div>
@@ -373,30 +373,52 @@ $checkmark = "
                     }
                 }
             },
-            plugins: [{
-                id: 'customXAxisImages',
-                afterDraw: function (chart) {
-                    const xAxis = chart.scales.x;
-                    const ctx = chart.ctx;
+            plugins: [
+                {
+                    id: 'customXAxisImages',
+                    afterDraw: function (chart) {
+                        const xAxis = chart.scales.x;
+                        const ctx = chart.ctx;
 
-                    xAxis.ticks.forEach((tick, index) => {
-                        const image = new Image();
-                        image.src = contributorImages[index];
-                        const x = xAxis.getPixelForTick(index);
-                        const y = chart.height - 60; // Adjust to position images under names
+                        xAxis.ticks.forEach((tick, index) => {
+                            const image = new Image();
+                            image.src = contributorImages[index];
+                            const x = xAxis.getPixelForTick(index);
+                            const y = chart.height - 60; // Adjust to position images under names
 
-                        // Draw rounded image
-                        const imageSize = 60; // Image size
-                        ctx.save();
-                        ctx.beginPath();
-                        ctx.arc(x, y + imageSize / 2, imageSize / 2, 0, Math.PI * 2); // Circle mask
-                        ctx.closePath();
-                        ctx.clip();
-                        ctx.drawImage(image, x - imageSize / 2, y, imageSize, imageSize);
-                        ctx.restore();
-                    });
-                }
-            }]
+                            // Draw rounded image
+                            const imageSize = 60; // Image size
+                            ctx.save();
+                            ctx.beginPath();
+                            ctx.arc(x, y + imageSize / 2, imageSize / 2, 0, Math.PI * 2); // Circle mask
+                            ctx.closePath();
+                            ctx.clip();
+                            ctx.drawImage(image, x - imageSize / 2, y, imageSize, imageSize);
+                            ctx.restore();
+                        });
+                    }
+                },
+                {
+                    id: 'customBarLabels',
+                    afterDatasetsDraw: function (chart) {
+                        const ctx = chart.ctx;
+                        const dataset = chart.data.datasets[0];
+                        const meta = chart.getDatasetMeta(0);
+
+                        meta.data.forEach((bar, index) => {
+                            const value = dataset.data[index];
+                            const x = bar.x;
+                            const y = bar.y + (bar.height || 0) - 10;
+
+                            ctx.save();
+                            ctx.font = 'bold 14px Segoe UI';
+                            ctx.fillStyle = 'white';
+                            ctx.textAlign = 'center';
+                            ctx.fillText(value, x, y);
+                            ctx.restore();
+                        });
+                    }
+                }]
         });
     });
 </script>
