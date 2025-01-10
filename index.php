@@ -74,174 +74,216 @@ function toTimeAgo($time): string
 $contributorCount = 5;
 $prCount = 20;
 
+$TESTING = true;
+
 // Load the .env file
-loadEnv();
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
+if (!$TESTING) {
+    loadEnv();
+    error_reporting(E_ALL);
+    ini_set('display_errors', 1);
 
-// Get all repos
-$ch = curl_init("https://api.github.com/orgs/GEWIS/repos?per_page=100&sort=pushed");
+    // Get all repos
+    $ch = curl_init("https://api.github.com/orgs/GEWIS/repos?per_page=100&sort=pushed");
 
-setupCh($ch);
+    setupCh($ch);
 
-$repos = json_decode(curl_exec($ch), true);
+    $repos = json_decode(curl_exec($ch), true);
 
-curl_close($ch);
+    curl_close($ch);
 
-// Used to get commits since a certain date
-$since = date('Y-m-d\TH:i:s\Z', strtotime('-14 days'));
+    // Used to get commits since a certain date
+    $since = date('Y-m-d\TH:i:s\Z', strtotime('-14 days'));
 
-// Create multi curl handle
-$mh = curl_multi_init();
+    // Create multi curl handle
+    $mh = curl_multi_init();
 
-// Create list to store curl handles
-$commitChs = [];
-$prChs = [];
-$commitCountChs = [];
-$contributorsChs = [];
-foreach ($repos as $repo) {
-    $repo_name = $repo['name'];
+    // Create list to store curl handles
+    $commitChs = [];
+    $prChs = [];
+    $commitCountChs = [];
+    $contributorsChs = [];
+    foreach ($repos as $repo) {
+        $repo_name = $repo['name'];
 
-    // Initiate curl handles for this repo
-    $commitCh = curl_init("https://api.github.com/repos/GEWIS/$repo_name/commits?since=$since");
-    $prCh = curl_init("https://api.github.com/repos/GEWIS/$repo_name/pulls?per_page=$prCount&state=closed&sort=updated&direction=desc");
-    $commitCountCh = curl_init("https://api.github.com/repos/GEWIS/$repo_name/commits?per_page=1");
-    $contributorCh = curl_init("https://api.github.com/repos/GEWIS/$repo_name/contributors");
+        // Initiate curl handles for this repo
+        $commitCh = curl_init("https://api.github.com/repos/GEWIS/$repo_name/commits?since=$since");
+        $prCh = curl_init("https://api.github.com/repos/GEWIS/$repo_name/pulls?per_page=$prCount&state=closed&sort=updated&direction=desc");
+        $commitCountCh = curl_init("https://api.github.com/repos/GEWIS/$repo_name/commits?per_page=1");
+        $contributorCh = curl_init("https://api.github.com/repos/GEWIS/$repo_name/contributors");
 
-    // Set options for curl handles
-    setupCh($commitCh);
-    setupCh($prCh);
-    setupCh($commitCountCh, true);
-    setupCh($contributorCh);
+        // Set options for curl handles
+        setupCh($commitCh);
+        setupCh($prCh);
+        setupCh($commitCountCh, true);
+        setupCh($contributorCh);
 
-    // Add handles to multi handle
-    curl_multi_add_handle($mh, $commitCh);
-    curl_multi_add_handle($mh, $prCh);
-    curl_multi_add_handle($mh, $commitCountCh);
-    curl_multi_add_handle($mh, $contributorCh);
+        // Add handles to multi handle
+        curl_multi_add_handle($mh, $commitCh);
+        curl_multi_add_handle($mh, $prCh);
+        curl_multi_add_handle($mh, $commitCountCh);
+        curl_multi_add_handle($mh, $contributorCh);
 
-    // Add handles to lists
-    $commitChs[] = $commitCh;
-    $prChs[] = $prCh;
-    $commitCountChs[] = $commitCountCh;
-    $contributorsChs[] = $contributorCh;
-}
+        // Add handles to lists
+        $commitChs[] = $commitCh;
+        $prChs[] = $prCh;
+        $commitCountChs[] = $commitCountCh;
+        $contributorsChs[] = $contributorCh;
+    }
 
-// Execute all queries at the same time, continue when all are complete
-$running = null;
-do {
-    curl_multi_exec($mh, $running);
-} while ($running);
+    // Execute all queries at the same time, continue when all are complete
+    $running = null;
+    do {
+        curl_multi_exec($mh, $running);
+    } while ($running);
 
-// Close all handles and parse responses
-$commits = [];
-foreach ($commitChs as $commitCh) {
-    curl_multi_remove_handle($mh, $commitCh);
-    $commits = array_merge($commits, json_decode(curl_multi_getcontent($commitCh), true));
-}
+    // Close all handles and parse responses
+    $commits = [];
+    foreach ($commitChs as $commitCh) {
+        curl_multi_remove_handle($mh, $commitCh);
+        $commits = array_merge($commits, json_decode(curl_multi_getcontent($commitCh), true));
+    }
 
-$prs = [];
-foreach ($prChs as $prCh) {
-    curl_multi_remove_handle($mh, $prCh);
-    $prs = array_merge($prs, json_decode(curl_multi_getcontent($prCh), true));
-}
+    $prs = [];
+    foreach ($prChs as $prCh) {
+        curl_multi_remove_handle($mh, $prCh);
+        $prs = array_merge($prs, json_decode(curl_multi_getcontent($prCh), true));
+    }
 
-$commitCount = 0;
-foreach ($commitCountChs as $commitCountCh) {
-    curl_multi_remove_handle($mh, $commitCountCh);
+    $commitCount = 0;
+    foreach ($commitCountChs as $commitCountCh) {
+        curl_multi_remove_handle($mh, $commitCountCh);
 
-    // Get headers using standard separator
-    list($headers, $content) = explode("\r\n\r\n", curl_multi_getcontent($commitCountCh), 2);
+        // Get headers using standard separator
+        list($headers, $content) = explode("\r\n\r\n", curl_multi_getcontent($commitCountCh), 2);
 
-    // For each header
-    foreach (explode("\r\n", $headers) as $header => $line) {
-        // If it is the link header
-        if (strpos($line, 'link') !== false) {
-            // Split into header key and value
-            list ($key, $value) = explode(': ', $line);
+        // For each header
+        foreach (explode("\r\n", $headers) as $header => $line) {
+            // If it is the link header
+            if (strpos($line, 'link') !== false) {
+                // Split into header key and value
+                list ($key, $value) = explode(': ', $line);
 
-            // Get the amount of pages left
-            // Because page=1 in the parameters we know that this is the amount of commits in this repo
-            preg_match('/page=(\d+); rel="last"/', str_replace(['<', '>'], '', $value), $matches);
-            $commitCount += intval($matches[1]);
+                // Get the amount of pages left
+                // Because page=1 in the parameters we know that this is the amount of commits in this repo
+                preg_match('/page=(\d+); rel="last"/', str_replace(['<', '>'], '', $value), $matches);
+                $commitCount += intval($matches[1]);
+            }
         }
     }
-}
 
-$uniqueContributors = [];
-foreach ($contributorsChs as $contributorsCh) {
-    curl_multi_remove_handle($mh, $contributorsCh);
-    $contributorList = json_decode(curl_multi_getcontent($contributorsCh), true);
-    foreach ($contributorList as $contributor) {
-        // Only add contributors that are not in the list yet to only get unique contributors
-        $login = $contributor['login'];
-        if (!in_array($login, $uniqueContributors)) {
-            $uniqueContributors[] = $login;
+    $uniqueContributors = [];
+    foreach ($contributorsChs as $contributorsCh) {
+        curl_multi_remove_handle($mh, $contributorsCh);
+        $contributorList = json_decode(curl_multi_getcontent($contributorsCh), true);
+        foreach ($contributorList as $contributor) {
+            // Only add contributors that are not in the list yet to only get unique contributors
+            $login = $contributor['login'];
+            if (!in_array($login, $uniqueContributors)) {
+                $uniqueContributors[] = $login;
+            }
         }
     }
-}
 
-$uniqueContributorCount = count($uniqueContributors);
+    $uniqueContributorCount = count($uniqueContributors);
 
-// Close multi handle
-curl_multi_close($mh);
+    // Close multi handle
+    curl_multi_close($mh);
 
-foreach ($commits as $commit) {
-    $author = $commit['author']['login'];
+    foreach ($commits as $commit) {
+        $author = $commit['author']['login'];
 
-    // Ignore commits from dependabot
-    if ($author == 'dependabot[bot]') {
-        continue;
+        // Ignore commits from dependabot
+        if ($author == 'dependabot[bot]') {
+            continue;
+        }
+
+        $count = $contributors[$author]['count'] ?? 0;
+
+        // Commits have no repo property, but we can get it from the html_url using a regex filter
+        preg_match('/github\.com\/[^\/]+\/([^\/]+)/', $commit['html_url'], $matches);
+        $repo = $matches[1];
+
+        // Only a repo to the list if it is not in the list yet
+        if (!in_array($repo, $contributors[$author]['repos'] ?? [])) {
+            $contributors[$author]['repos'][] = $repo;
+        }
+
+        // Only set image the first time
+        if (empty($contributors[$author]['image'])) {
+            $contributors[$author]['image'] = $commit['author']['avatar_url'];
+        }
+
+        $contributors[$author]['count'] = $count + 1;
     }
 
-    $count = $contributors[$author]['count'] ?? 0;
+    $recentPrs = [];
+    foreach ($prs as $pr) {
+        // If the PR has been merged
+        if (!empty($pr['merged_at'])) {
+            $time = strtotime($pr['merged_at']);
 
-    // Commits have no repo property, but we can get it from the html_url using a regex filter
-    preg_match('/github\.com\/[^\/]+\/([^\/]+)/', $commit['html_url'], $matches);
-    $repo = $matches[1];
-
-    // Only a repo to the list if it is not in the list yet
-    if (!in_array($repo, $contributors[$author]['repos'] ?? [])) {
-        $contributors[$author]['repos'][] = $repo;
+            // Index on time to sort on later
+            $recentPrs[$time]['title'] = $pr['title'];
+            $recentPrs[$time]['author'] = $pr['user']['login'];
+            $recentPrs[$time]['number'] = $pr['number'];
+            $recentPrs[$time]['repo'] = $pr['head']['repo']['name'] ?? '';
+            $recentPrs[$time]['merged_at'] = $pr['merged_at'];
+        }
     }
 
-    // Only set image the first time
-    if (empty($contributors[$author]['image'])) {
-        $contributors[$author]['image'] = $commit['author']['avatar_url'];
+    function compareCounts($a, $b)
+    {
+        return $b['count'] - $a['count'];
     }
 
-    $contributors[$author]['count'] = $count + 1;
+    // Sort on the count values descending and take highest 4
+    uasort($contributors, "compareCounts");
+    $contributors = array_slice($contributors, 0, $contributorCount, true);
+
+    // Sort on key (time) values descending and take highest (most recent) 3
+    krsort($recentPrs);
+    $recentPrs = array_slice($recentPrs, 0, $prCount, true);
+
+    $repo_count = count($repos);
+} else {
+    $commitCount = 120471;
+    $uniqueContributorCount = 201;
+    $repo_count = 40;
+
+    $recentPrs = array(
+        1736514338 => array('title' => 'Test PR 1', 'author' => 'Ik', 'number' => 1234, 'repo' => 'test_repo', 'merged_at' => 1736514338),
+        1736514339 => array('title' => 'Feature Update', 'author' => 'Alice', 'number' => 5678, 'repo' => 'new_feature_repo', 'merged_at' => 1736514339),
+        1736514340 => array('title' => 'Bug Fix', 'author' => 'Bob', 'number' => 9101, 'repo' => 'bug_fixes', 'merged_at' => 1736514340),
+        1736514341 => array('title' => 'Refactor Code', 'author' => 'Charlie', 'number' => 1121, 'repo' => 'refactor_repo', 'merged_at' => 1736514341),
+        1736514342 => array('title' => 'Add New Tests', 'author' => 'Diane', 'number' => 3141, 'repo' => 'test_suite', 'merged_at' => 1736514342),
+        1736514343 => array('title' => 'Optimize Queries', 'author' => 'Eve', 'number' => 5161, 'repo' => 'db_opt', 'merged_at' => 1736514343),
+        1736514344 => array('title' => 'Update Docs', 'author' => 'Frank', 'number' => 7181, 'repo' => 'docs_repo', 'merged_at' => 1736514344),
+        1736514345 => array('title' => 'Fix CSS', 'author' => 'Grace', 'number' => 9202, 'repo' => 'frontend', 'merged_at' => 1736514345),
+        1736514346 => array('title' => 'API Enhancement', 'author' => 'Hank', 'number' => 1223, 'repo' => 'api_repo', 'merged_at' => 1736514346),
+        1736514347 => array('title' => 'Fix Memory Leak', 'author' => 'Ivy', 'number' => 3445, 'repo' => 'backend', 'merged_at' => 1736514347),
+        1736514348 => array('title' => 'Upgrade Dependencies', 'author' => 'Jack', 'number' => 5667, 'repo' => 'dependency_repo', 'merged_at' => 1736514348),
+        1736514349 => array('title' => 'Resolve Merge Conflict', 'author' => 'Kira', 'number' => 7889, 'repo' => 'conflict_resolver', 'merged_at' => 1736514349),
+        1736514350 => array('title' => 'Enhance UI', 'author' => 'Liam', 'number' => 9001, 'repo' => 'ui_repo', 'merged_at' => 1736514350),
+        1736514351 => array('title' => 'Update CI/CD', 'author' => 'Mona', 'number' => 1232, 'repo' => 'ci_cd', 'merged_at' => 1736514351),
+        1736514352 => array('title' => 'Add Logging', 'author' => 'Nate', 'number' => 3453, 'repo' => 'log_repo', 'merged_at' => 1736514352),
+        1736514353 => array('title' => 'Improve Performance', 'author' => 'Oscar', 'number' => 5674, 'repo' => 'perf_repo', 'merged_at' => 1736514353),
+        1736514354 => array('title' => 'Fix Broken Build', 'author' => 'Paula', 'number' => 7895, 'repo' => 'build_repo', 'merged_at' => 1736514354),
+        1736514355 => array('title' => 'Enhance Accessibility', 'author' => 'Quinn', 'number' => 9016, 'repo' => 'access_repo', 'merged_at' => 1736514355),
+        1736514356 => array('title' => 'Add Dark Mode', 'author' => 'Ryan', 'number' => 1237, 'repo' => 'theme_repo', 'merged_at' => 1736514356),
+        1736514357 => array('title' => 'Improve Logging', 'author' => 'Sophia', 'number' => 3458, 'repo' => 'log_updates', 'merged_at' => 1736514357),
+        1736514358 => array('title' => 'Clean Up Code', 'author' => 'Tom', 'number' => 5679, 'repo' => 'cleanup_repo', 'merged_at' => 1736514358),
+        1736514359 => array('title' => 'Add CI Test', 'author' => 'Uma', 'number' => 7890, 'repo' => 'ci_repo', 'merged_at' => 1736514359),
+    );
+
+    $contributors = array(
+        'RubenLWF' => array('count' => 25, 'image' => 'https://avatars.githubusercontent.com/u/98549214?v=4'),
+        'Ruben1' => array('count' => 20, 'image' => 'https://avatars.githubusercontent.com/u/98549214?v=4'),
+        'Ruben2' => array('count' => 15, 'image' => 'https://avatars.githubusercontent.com/u/98549214?v=4'),
+        'Ruben3' => array('count' => 10, 'image' => 'https://avatars.githubusercontent.com/u/98549214?v=4'),
+        'Ruben4' => array('count' => 5, 'image' => 'https://avatars.githubusercontent.com/u/98549214?v=4')
+    );
 }
 
-$recentPrs = [];
-foreach ($prs as $pr) {
-    // If the PR has been merged
-    if (!empty($pr['merged_at'])) {
-        $time = strtotime($pr['merged_at']);
-
-        // Index on time to sort on later
-        $recentPrs[$time]['title'] = $pr['title'];
-        $recentPrs[$time]['author'] = $pr['user']['login'];
-        $recentPrs[$time]['number'] = $pr['number'];
-        $recentPrs[$time]['repo'] = $pr['head']['repo']['name'] ?? '';
-        $recentPrs[$time]['merged_at'] = $pr['merged_at'];
-    }
-}
-
-function compareCounts($a, $b)
-{
-    return $b['count'] - $a['count'];
-}
-
-// Sort on the count values descending and take highest 4
-uasort($contributors, "compareCounts");
-$contributors = array_slice($contributors, 0, $contributorCount, true);
-
-// Sort on key (time) values descending and take highest (most recent) 3
-krsort($recentPrs);
-$recentPrs = array_slice($recentPrs, 0, $prCount, true);
-
-$repo_count = count($repos);
 
 // Save checkmark svg element used for PRs
 $checkmark = "
