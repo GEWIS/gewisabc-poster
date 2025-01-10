@@ -260,6 +260,7 @@ $checkmark = "
     <title>ABC GEWIS Poster</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
 </head>
 <body>
 <div class="container">
@@ -298,7 +299,7 @@ $checkmark = "
     <div class="right">
         <div class="prs">
             <h2 class="pr-list-title">Most recent merged pull requests across all GEWIS repositories</h2>
-            <div class="pr-list">
+            <div class="pr-list" id="pr-list">
                 <?php
                 foreach ($recentPrs as $time => $pr) {
                     echo "
@@ -421,6 +422,15 @@ $checkmark = "
                 }]
         });
     });
+
+    const scrollSmoothlyToBottom = (id) => {
+        const element = $(`#${id}`);
+        element.animate({
+            scrollTop: element.prop("scrollHeight")
+        }, 45000, "linear");
+    }
+
+    scrollSmoothlyToBottom('pr-list')
 </script>
 </body>
 </html>

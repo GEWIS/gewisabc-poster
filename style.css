@@ -113,20 +113,12 @@ h2 {
     position: relative;
     background-color: var(--div-background-color);
     padding-top: 20px;
-    padding-bottom: 10px;
 }
 
-@keyframes scroll {
-    0% {transform: translateY(0);}
-    20% {transform: translateY(0);}
-    100% {transform: translateY(calc(-70%));}
-}
-
-.pr-list {
-    animation-name: scroll;
-    animation-duration: 20s;
-    animation-timing-function: linear;
-    animation-iteration-count: infinite;
+.pr-list{
+    height: 100%;
+    scrollbar-width: none;
+    overflow-y: scroll;
 }
 
 .pr {
