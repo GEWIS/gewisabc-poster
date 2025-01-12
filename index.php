@@ -389,7 +389,8 @@ $checkmark = "
             options: {
                 layout: {
                     padding: {
-                        bottom: 70 // Add extra space for the images
+                        bottom: 70, // Add extra space for the images
+                        top: 20
                     }
                 },
                 plugins: {
@@ -451,7 +452,7 @@ $checkmark = "
                         meta.data.forEach((bar, index) => {
                             const value = dataset.data[index];
                             const x = bar.x;
-                            const y = bar.y + (bar.height || 0) - 10;
+                            const y = bar.y - 5;
 
                             ctx.save();
                             ctx.font = 'bold 14px Segoe UI';
