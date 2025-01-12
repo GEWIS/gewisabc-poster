@@ -74,7 +74,7 @@ function toTimeAgo($time): string
 $contributorCount = 5;
 $prCount = 10;
 
-$TESTING = true; // 237 core tokens per non-test page load (max 5000 p/h)
+$TESTING = false; // 237 core tokens per non-test page load (max 5000 p/h)
 
 // Load the .env file
 if (!$TESTING) {
