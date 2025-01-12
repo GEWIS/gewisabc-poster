@@ -72,23 +72,24 @@ function toTimeAgo($time): string
 }
 
 $contributorCount = 5;
-$prCount = 20;
+$prCount = 10;
 
-$TESTING = true;
+$TESTING = true; // 237 core tokens per non-test page load (max 5000 p/h)
 
 // Load the .env file
 if (!$TESTING) {
-    loadEnv();
+    try {
+        loadEnv();
+    } catch (Exception $e) {
+        // Make .env pls :)
+    }
     error_reporting(E_ALL);
     ini_set('display_errors', 1);
 
     // Get all repos
     $ch = curl_init("https://api.github.com/orgs/GEWIS/repos?per_page=100&sort=pushed");
-
     setupCh($ch);
-
     $repos = json_decode(curl_exec($ch), true);
-
     curl_close($ch);
 
     // Used to get commits since a certain date
@@ -103,13 +104,13 @@ if (!$TESTING) {
     $commitCountChs = [];
     $contributorsChs = [];
     foreach ($repos as $repo) {
-        $repo_name = $repo['name'];
+        $repoName = $repo['name'];
 
         // Initiate curl handles for this repo
-        $commitCh = curl_init("https://api.github.com/repos/GEWIS/$repo_name/commits?since=$since");
-        $prCh = curl_init("https://api.github.com/repos/GEWIS/$repo_name/pulls?per_page=$prCount&state=closed&sort=updated&direction=desc");
-        $commitCountCh = curl_init("https://api.github.com/repos/GEWIS/$repo_name/commits?per_page=1");
-        $contributorCh = curl_init("https://api.github.com/repos/GEWIS/$repo_name/contributors");
+        $commitCh = curl_init("https://api.github.com/repos/GEWIS/$repoName/commits?since=$since");
+        $prCh = curl_init("https://api.github.com/repos/GEWIS/$repoName/pulls?per_page=$prCount&state=closed&sort=updated&direction=desc");
+        $commitCountCh = curl_init("https://api.github.com/repos/GEWIS/$repoName/commits?per_page=1");
+        $contributorCh = curl_init("https://api.github.com/repos/GEWIS/$repoName/contributors");
 
         // Set options for curl handles
         setupCh($commitCh);
@@ -321,6 +322,9 @@ $checkmark = "
             </div>
         </div>
         <div class="stats">
+            <div class="stats-title">
+                <h2>All-time stats:</h2>
+            </div>
             <div class="stat">
                 <h3>There have been</h3>
                 <h1 class="highlight"><?php echo $commitCount ?></h1>

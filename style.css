@@ -85,6 +85,14 @@ h2 {
     height: calc(20% - 80px);
 }
 
+.stats-title {
+    align-content: center;
+}
+
+.stats-title h2 {
+    margin-bottom: 0;
+}
+
 .stat {
     text-align: center;
     flex-grow: 1;
