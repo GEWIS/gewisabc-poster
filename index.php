@@ -2,12 +2,7 @@
 declare(strict_types=1);
 
 require __DIR__ . "/repos.php";
-
-if (is_file(__DIR__ . "/pat.php")) {
-    require __DIR__ . "/pat.php";
-} elseif (is_file(__DIR__ . "/pat.example.php")) {
-    require __DIR__ . "/pat.example.php";
-}
+require __DIR__ . "/pat.php";
 
 if (!isset($pat) || !is_string($pat) || $pat === "") {
     http_response_code(500);
@@ -39,6 +34,50 @@ function githubGetJson(string $url, string $pat): array
 }
 
 /**
+ * @param array<int, string> $urls
+ * @return array<string, array<int, mixed>>
+ */
+function githubGetJsonMulti(array $urls, string $pat): array
+{
+    $mh = curl_multi_init();
+    $handles = [];
+
+    foreach ($urls as $url) {
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HTTPHEADER => [
+                "User-Agent: Narrowcasting-Screen",
+                "Authorization: Bearer $pat",
+                "Accept: application/vnd.github+json",
+                "X-GitHub-Api-Version: 2022-11-28",
+            ],
+        ]);
+        curl_multi_add_handle($mh, $ch);
+        $handles[$url] = $ch;
+    }
+
+    do {
+        $status = curl_multi_exec($mh, $active);
+        if ($active) {
+            curl_multi_select($mh, 1.0);
+        }
+    } while ($active && $status === CURLM_OK);
+
+    $out = [];
+    foreach ($handles as $url => $ch) {
+        $response = curl_multi_getcontent($ch);
+        $decoded = json_decode(is_string($response) ? $response : "", true);
+        $out[$url] = is_array($decoded) ? $decoded : [];
+        curl_multi_remove_handle($mh, $ch);
+        curl_close($ch);
+    }
+    curl_multi_close($mh);
+
+    return $out;
+}
+
+/**
  * @param array<int, array{owner: string, repo: string}> $reposToWatch
  * @return array<int, array<string, mixed>>
  */
@@ -47,14 +86,24 @@ function collectSlides(array $reposToWatch, string $pat, DateTimeInterface $now)
     $since = (new DateTimeImmutable($now->format(DateTimeInterface::ATOM)))->sub(new DateInterval("P7D"));
     $slides = [];
 
+    $prUrls = [];
+    $relUrls = [];
     foreach ($reposToWatch as $r) {
         $owner = $r["owner"];
         $repo = $r["repo"];
 
-        $prs = githubGetJson(
-            "https://api.github.com/repos/$owner/$repo/pulls?state=closed&per_page=50&sort=updated&direction=desc",
-            $pat
-        );
+        $prUrls["$owner/$repo"] = "https://api.github.com/repos/$owner/$repo/pulls?state=closed&per_page=50&sort=updated&direction=desc";
+        $relUrls["$owner/$repo"] = "https://api.github.com/repos/$owner/$repo/releases?per_page=10";
+    }
+
+    $responses = githubGetJsonMulti(array_values(array_merge($prUrls, $relUrls)), $pat);
+
+    foreach ($reposToWatch as $r) {
+        $owner = $r["owner"];
+        $repo = $r["repo"];
+        $key = "$owner/$repo";
+
+        $prs = $responses[$prUrls[$key]] ?? [];
 
         foreach ($prs as $pr) {
             if (!is_array($pr)) {
@@ -81,7 +130,7 @@ function collectSlides(array $reposToWatch, string $pat, DateTimeInterface $now)
             }
         }
 
-        $releases = githubGetJson("https://api.github.com/repos/$owner/$repo/releases?per_page=10", $pat);
+        $releases = $responses[$relUrls[$key]] ?? [];
 
         foreach ($releases as $rel) {
             if (!is_array($rel)) {
@@ -125,7 +174,28 @@ function relImage(string $owner, string $repo, string $tag): string
 }
 
 $now = new DateTimeImmutable("now", new DateTimeZone("UTC"));
-$slides = collectSlides($reposToWatch, $pat, $now);
+$cacheDir = __DIR__ . "/cache";
+$cacheFile = $cacheDir . "/slides.json";
+$cacheTtlSeconds = 300;
+
+$slides = null;
+if (is_file($cacheFile) && filemtime($cacheFile) !== false && filemtime($cacheFile) >= (time() - $cacheTtlSeconds)) {
+    $cache = json_decode((string)file_get_contents($cacheFile), true);
+    if (is_array($cache) && isset($cache["slides"]) && is_array($cache["slides"])) {
+        $slides = $cache["slides"];
+    }
+}
+
+if (!is_array($slides)) {
+    $slides = collectSlides($reposToWatch, $pat, $now);
+    if (!is_dir($cacheDir)) {
+        @mkdir($cacheDir, 0777, true);
+    }
+    @file_put_contents(
+        $cacheFile,
+        json_encode(["generated_at" => time(), "slides" => $slides], JSON_UNESCAPED_SLASHES)
+    );
+}
 ?>
 
 <!DOCTYPE html>
@@ -155,19 +225,52 @@ $slides = collectSlides($reposToWatch, $pat, $now);
 <script>
     const slides = document.querySelectorAll(".slide");
     let current = 0;
+    let switchToken = 0;
+    const preloaded = new Set();
+
+    function preloadSlide(i) {
+        if (slides.length === 0) return Promise.resolve();
+
+        const idx = ((i % slides.length) + slides.length) % slides.length;
+        const img = slides[idx].querySelector("img");
+        const src = img?.getAttribute("src");
+        if (!img || !src) return Promise.resolve();
+        if (img.complete || preloaded.has(src)) {
+            preloaded.add(src);
+            return Promise.resolve();
+        }
+
+        return new Promise(resolve => {
+            const pre = new Image();
+            pre.onload = () => {
+                preloaded.add(src);
+                resolve();
+            };
+            pre.onerror = () => resolve();
+            pre.src = src;
+        });
+    }
 
     function showSlide(i) {
-        slides.forEach(s => {
-            s.style.display = "none";
-            removeConfetti(s);
+        const myToken = ++switchToken;
+        const idx = ((i % slides.length) + slides.length) % slides.length;
+        preloadSlide(idx).then(() => {
+            if (myToken !== switchToken) return;
+
+            slides.forEach(s => {
+                s.style.display = "none";
+                removeConfetti(s);
+            });
+
+            const slide = slides[idx];
+            slide.style.display = "block";
+
+            if (slide.dataset.type === "release") {
+                launchConfetti(slide);
+            }
+
+            preloadSlide(idx + 1);
         });
-
-        const slide = slides[i];
-        slide.style.display = "block";
-
-        if (slide.dataset.type === "release") {
-            launchConfetti(slide);
-        }
     }
 
     function nextSlide() {
