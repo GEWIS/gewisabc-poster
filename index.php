@@ -96,7 +96,8 @@ function collectSlides(array $reposToWatch, string $pat, DateTimeInterface $now)
         $relUrls["$owner/$repo"] = "https://api.github.com/repos/$owner/$repo/releases?per_page=10";
     }
 
-    $responses = githubGetJsonMulti(array_values(array_merge($prUrls, $relUrls)), $pat);
+    // Don't use array_merge($prUrls, $relUrls): same keys would overwrite PR URLs.
+    $responses = githubGetJsonMulti(array_merge(array_values($prUrls), array_values($relUrls)), $pat);
 
     foreach ($reposToWatch as $r) {
         $owner = $r["owner"];
@@ -214,6 +215,11 @@ if (!is_array($slides)) {
 <?php else: ?>
     <?php foreach ($slides as $i => $s): ?>
         <div class="slide" id="slide-<?= $i ?>" data-type="<?= $s["type"] ?>">
+            <?php if ($s["type"] === "release"): ?>
+                <div class="release-banner">
+                    New release of <?= htmlspecialchars($s["repo"]) ?>, <?= htmlspecialchars($s["tag"]) ?> 🎉🚀
+                </div>
+            <?php endif; ?>
             <img src="<?=
             $s["type"] === "pr"
                 ? prImage($s["owner"], $s["repo"], $s["number"])
