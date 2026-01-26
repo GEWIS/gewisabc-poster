@@ -124,6 +124,7 @@ function collectSlides(array $reposToWatch, string $pat, DateTimeInterface $now)
                     "type" => "pr",
                     "owner" => $owner,
                     "repo" => $repo,
+                    "author" => is_string($login) ? $login : "",
                     "number" => $pr["number"],
                     "title" => $pr["title"],
                     "merged_at" => $pr["merged_at"],
@@ -214,10 +215,20 @@ if (!is_array($slides)) {
     <div class="empty">No activity last week.</div>
 <?php else: ?>
     <?php foreach ($slides as $i => $s): ?>
-        <div class="slide" id="slide-<?= $i ?>" data-type="<?= $s["type"] ?>">
+        <div
+            class="slide"
+            id="slide-<?= $i ?>"
+            data-type="<?= htmlspecialchars($s["type"]) ?>"
+            data-owner="<?= htmlspecialchars($s["owner"]) ?>"
+            data-repo="<?= htmlspecialchars($s["repo"]) ?>"
+        >
             <?php if ($s["type"] === "release"): ?>
                 <div class="release-banner">
                     New release of <?= htmlspecialchars($s["repo"]) ?>, <?= htmlspecialchars($s["tag"]) ?> 🎉🚀
+                </div>
+            <?php elseif ($s["type"] === "pr"): ?>
+                <div class="pr-banner">
+                    <?= htmlspecialchars(($s["author"] ?? "") ?: "Someone") ?> merged a change into <?= htmlspecialchars($s["repo"]) ?> 🚀
                 </div>
             <?php endif; ?>
             <img src="<?=
@@ -227,6 +238,14 @@ if (!is_array($slides)) {
             ?>">
         </div>
     <?php endforeach; ?>
+<?php endif; ?>
+
+<?php if (count($slides) > 0): ?>
+    <div class="cta-banner">
+        Do you also want to contribute to
+        <span class="cta-url" id="cta-target">GEWIS/...</span>?
+        <span class="cta-sub">Visit us on github.com/GEWIS</span>
+    </div>
 <?php endif; ?>
 
 <script>
@@ -276,6 +295,14 @@ if (!is_array($slides)) {
         ensureLoaded(idx);
     }
 
+    function updateCtaForSlide(slideEl) {
+        const target = document.getElementById("cta-target");
+        if (!target || !slideEl) return;
+        const owner = slideEl.dataset.owner || "GEWIS";
+        const repo = slideEl.dataset.repo || "...";
+        target.textContent = `${owner}/${repo}`;
+    }
+
     function showSlide(i) {
         if (slides.length === 0) return;
 
@@ -318,6 +345,7 @@ if (!is_array($slides)) {
 
                 toEl.style.zIndex = "1";
                 current = to;
+                updateCtaForSlide(slides[current]);
                 primeSlide(current + 1);
             }, FADE_MS + 50);
         });
@@ -357,6 +385,7 @@ if (!is_array($slides)) {
             launchConfetti(slides[0]);
         }
 
+        updateCtaForSlide(slides[0]);
         primeSlide(1);
         setInterval(nextSlide, 10000); // 10 sec per slide
     }

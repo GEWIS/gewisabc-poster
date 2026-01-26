@@ -28,7 +28,8 @@ html, body {
   z-index: 1;
 }
 
-.release-banner {
+.release-banner,
+.pr-banner {
   position: absolute;
   top: 32px;
   left: 50%;
@@ -49,6 +50,38 @@ html, body {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.cta-banner {
+  position: fixed;
+  right: 36px;
+  bottom: 36px;
+  z-index: 20;
+  padding: 12px 18px;
+  border-radius: 14px;
+  background: rgba(120, 120, 120, 0.45);
+  color: #fff;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  font-size: 26px;
+  font-weight: 600;
+  text-align: right;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  max-width: 46vw;
+}
+
+.cta-url {
+  font-weight: 800;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+}
+
+.cta-sub {
+  display: block;
+  margin-top: 6px;
+  opacity: 0.9;
+  font-weight: 600;
+  font-size: 22px;
 }
 
 .empty {
