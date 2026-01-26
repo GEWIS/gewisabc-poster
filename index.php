@@ -42,9 +42,9 @@ function githubGetJson(string $url, string $pat): array
  * @param array<int, array{owner: string, repo: string}> $reposToWatch
  * @return array<int, array<string, mixed>>
  */
-function collectSlides(array $reposToWatch, string $pat, DateTimeInterface $today): array
+function collectSlides(array $reposToWatch, string $pat, DateTimeInterface $now): array
 {
-    $todayStr = $today->format("Y-m-d");
+    $since = (new DateTimeImmutable($now->format(DateTimeInterface::ATOM)))->sub(new DateInterval("P7D"));
     $slides = [];
 
     foreach ($reposToWatch as $r) {
@@ -69,7 +69,7 @@ function collectSlides(array $reposToWatch, string $pat, DateTimeInterface $toda
             }
 
             $mergedAt = new DateTimeImmutable((string)$pr["merged_at"]);
-            if ($mergedAt->format("Y-m-d") === $todayStr) {
+            if ($mergedAt >= $since) {
                 $slides[] = [
                     "type" => "pr",
                     "owner" => $owner,
@@ -92,7 +92,7 @@ function collectSlides(array $reposToWatch, string $pat, DateTimeInterface $toda
             }
 
             $publishedAt = new DateTimeImmutable((string)$rel["published_at"]);
-            if ($publishedAt->format("Y-m-d") === $todayStr) {
+            if ($publishedAt >= $since) {
                 $slides[] = [
                     "type" => "release",
                     "owner" => $owner,
@@ -124,8 +124,8 @@ function relImage(string $owner, string $repo, string $tag): string
     return "https://opengraph.githubassets.com/static/$owner/$repo/releases/tag/$tag?size=1600";
 }
 
-$today = new DateTimeImmutable("now", new DateTimeZone("UTC"));
-$slides = collectSlides($reposToWatch, $pat, $today);
+$now = new DateTimeImmutable("now", new DateTimeZone("UTC"));
+$slides = collectSlides($reposToWatch, $pat, $now);
 ?>
 
 <!DOCTYPE html>
@@ -139,7 +139,7 @@ $slides = collectSlides($reposToWatch, $pat, $today);
 <body>
 
 <?php if (count($slides) === 0): ?>
-    <div class="empty">No activity today.</div>
+    <div class="empty">No activity last week.</div>
 <?php else: ?>
     <?php foreach ($slides as $i => $s): ?>
         <div class="slide" id="slide-<?= $i ?>" data-type="<?= $s["type"] ?>">
