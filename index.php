@@ -150,6 +150,7 @@ function collectSlides(array $reposToWatch, string $pat, DateTimeInterface $now)
                     "title" => ($rel["name"] ?? "") ?: $rel["tag_name"],
                     "published_at" => $rel["published_at"],
                 ];
+                break; // only latest release per repo
             }
         }
     }
