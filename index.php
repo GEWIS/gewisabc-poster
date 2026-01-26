@@ -224,58 +224,100 @@ if (!is_array($slides)) {
 
 <script>
     const slides = document.querySelectorAll(".slide");
-    let current = 0;
     let switchToken = 0;
-    const preloaded = new Set();
+    let current = 0;
+    const FADE_MS = 350;
 
-    function preloadSlide(i) {
-        if (slides.length === 0) return Promise.resolve();
+    function idxOf(i) {
+        return ((i % slides.length) + slides.length) % slides.length;
+    }
 
-        const idx = ((i % slides.length) + slides.length) % slides.length;
+    function ensureLoaded(i) {
+        const idx = idxOf(i);
         const img = slides[idx].querySelector("img");
         const src = img?.getAttribute("src");
         if (!img || !src) return Promise.resolve();
-        if (img.complete || preloaded.has(src)) {
-            preloaded.add(src);
-            return Promise.resolve();
-        }
+        if (img.complete && img.naturalWidth > 0) return Promise.resolve();
 
         return new Promise(resolve => {
-            const pre = new Image();
-            pre.onload = () => {
-                preloaded.add(src);
+            let done = false;
+            const finish = () => {
+                if (done) return;
+                done = true;
+                img.removeEventListener("load", finish);
+                img.removeEventListener("error", finish);
                 resolve();
             };
-            pre.onerror = () => resolve();
+            img.addEventListener("load", finish, { once: true });
+            img.addEventListener("error", finish, { once: true });
+
+            // Also start a high-priority preload.
+            const pre = new Image();
+            pre.onload = finish;
+            pre.onerror = finish;
             pre.src = src;
         });
     }
 
+    function primeSlide(i) {
+        if (slides.length === 0) return;
+        const idx = idxOf(i);
+        const s = slides[idx];
+        s.style.display = "block";
+        s.style.opacity = "0";
+        s.style.zIndex = "1";
+        ensureLoaded(idx);
+    }
+
     function showSlide(i) {
+        if (slides.length === 0) return;
+
         const myToken = ++switchToken;
-        const idx = ((i % slides.length) + slides.length) % slides.length;
-        preloadSlide(idx).then(() => {
+        const from = current;
+        const to = idxOf(i);
+        if (from === to) return;
+
+        const fromEl = slides[from];
+        const toEl = slides[to];
+
+        fromEl.style.display = "block";
+        fromEl.style.opacity = "1";
+        fromEl.style.zIndex = "1";
+
+        toEl.style.display = "block";      // render behind current
+        toEl.style.opacity = "0";
+        toEl.style.zIndex = "2";
+
+        ensureLoaded(to).then(() => {
             if (myToken !== switchToken) return;
 
-            slides.forEach(s => {
-                s.style.display = "none";
-                removeConfetti(s);
-            });
-
-            const slide = slides[idx];
-            slide.style.display = "block";
-
-            if (slide.dataset.type === "release") {
-                launchConfetti(slide);
+            if (toEl.dataset.type === "release") {
+                launchConfetti(toEl);
             }
 
-            preloadSlide(idx + 1);
+            requestAnimationFrame(() => {
+                if (myToken !== switchToken) return;
+                toEl.style.opacity = "1";
+                fromEl.style.opacity = "0";
+            });
+
+            setTimeout(() => {
+                if (myToken !== switchToken) return;
+
+                fromEl.style.display = "none";
+                fromEl.style.opacity = "0";
+                fromEl.style.zIndex = "1";
+                removeConfetti(fromEl);
+
+                toEl.style.zIndex = "1";
+                current = to;
+                primeSlide(current + 1);
+            }, FADE_MS + 50);
         });
     }
 
     function nextSlide() {
-        current = (current + 1) % slides.length;
-        showSlide(current);
+        showSlide(current + 1);
     }
 
     function launchConfetti(parent) {
@@ -294,7 +336,21 @@ if (!is_array($slides)) {
     }
 
     if (slides.length > 0) {
-        showSlide(0);
+        // Initial: show first slide instantly, preload the next "behind".
+        slides.forEach(s => {
+            s.style.display = "none";
+            s.style.opacity = "0";
+            s.style.zIndex = "1";
+        });
+
+        slides[0].style.display = "block";
+        slides[0].style.opacity = "1";
+        slides[0].style.zIndex = "1";
+        if (slides[0].dataset.type === "release") {
+            launchConfetti(slides[0]);
+        }
+
+        primeSlide(1);
         setInterval(nextSlide, 10000); // 10 sec per slide
     }
 </script>
