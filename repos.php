@@ -10,4 +10,6 @@ $reposToWatch = [
     ["owner" => "GEWIS", "repo" => "parelpracht"],
     ["owner" => "GEWIS", "repo" => "aurora-backoffice"],
     ["owner" => "GEWIS", "repo" => "aurora-client"],
+    ["owner" => "GEWIS", "repo" => "grooster-backend"],
+    ["owner" => "GEWIS", "repo" => "grooster-frontend"],
 ];
