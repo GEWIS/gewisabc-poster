@@ -387,7 +387,12 @@ if (!is_array($slides)) {
 
         updateCtaForSlide(slides[0]);
         primeSlide(1);
-        setInterval(nextSlide, 10000); // 10 sec per slide
+        const MIN_SLIDE_MS = 3000;
+        const SHOW_TIME_MS = 30000;
+        const slideInterval = slides.length > 1
+            ? Math.max(MIN_SLIDE_MS, Math.floor(SHOW_TIME_MS / slides.length))
+            : SHOW_TIME_MS;
+        setInterval(nextSlide, slideInterval);
     }
 </script>
 
